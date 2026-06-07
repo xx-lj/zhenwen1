@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>贞问·今契</title>
+
+<!--
+================================================================================
+  《贞问·今契》— 电影级东方神秘主义 WebGL 交互卜卦仪式
+================================================================================
+
+【如何运行】（方案 A：本地服务器）
+  1. 把本文件 index.html 和你的素材文件放在同一个文件夹里。
+  2. 在该文件夹打开终端 / 命令行，运行：
+         python -m http.server 8000
+     （没有 python 就用 python3 -m http.server 8000）
+  3. 浏览器打开： http://localhost:8000
+  ※ 必须用 http://localhost 访问，直接双击 file:// 打开会导致
+    摄像头被禁、本地图片/音频/字体加载失败（会自动走程序化兜底）。
+
+【如何替换素材】
+  所有资源都登记在下方 ASSETS 清单里。把你的真实文件按"完全相同的文件名"
+  放进对应目录即可，放一个生效一个，缺失的自动生成古朴兜底图形，永不黑屏。
+    图片目录前缀：ASSET_PATHS.img   （默认同目录 "./"）
+    音频目录前缀：ASSET_PATHS.audio （默认同目录 "./"）
+    字体文件    ：maobi.ttf        （同目录，缺失则回退楷体）
+  需要的图片：
+    xuanniao.png         玄鸟纹（第一幕标题两侧，建议透明PNG）
+    lunpan.png           甲骨文圆环法阵（第一幕背景，建议透明PNG 方形）
+    gupian-2/4/6/8.png   四块甲骨片轮廓（事业/感情/财运/健康选项 AlphaMap）
+    01.png ~ 04.png      第二幕主甲骨片漫反射贴图（随机取一张）
+    wen-1.png ~ wen-22.png  星环白色甲骨文字（透明PNG，建议白字透明底）
+  需要的音频：
+    bgm.mp3   背景乐（全程）  click.mp3 点击  kacha.mp3 快门
+    fire.mp3  火焰爆裂        daan.mp3  第四幕结束风铃
+  字体：maobi.ttf （篆书/毛笔体）
+
+================================================================================
+-->
+
+<style>
+  :root{
+    --gold:#d4af37; --gold-bright:#ffe9a8; --red-gold:#c8521e;
+    --ink:#0a0a0c; --ash:#1a1714; --paper:#e8dcc0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#000;
+    font-family:"maobi","STKaiti","KaiTi","SimSun",serif;color:var(--paper);
+    cursor:default;-webkit-user-select:none;user-select:none;}
+  @font-face{
+    font-family:"maobi";
+    src:url("maobi.ttf") format("truetype");
+    font-display:swap;
+  }
+  #canvas-root{position:fixed;inset:0;z-index:1;}
+  canvas{display:block;}
+
+  /* ---------- 全局 HUD ---------- */
+  .hud{position:fixed;z-index:10;pointer-events:none;
+    text-shadow:0 0 8px rgba(0,0,0,.9),0 0 2px #000;}
+  #hud-tl{top:18px;left:20px;font-size:20px;line-height:1.7;
+    letter-spacing:1px;color:var(--gold-bright);max-width:330px;}
+  #hud-tl .big{font-size:26px;color:var(--gold);letter-spacing:2px;}
+  #hud-tl .row{opacity:.92;}
+  #hud-tl .luck{margin-top:4px;font-size:18px;color:var(--paper);opacity:.8;}
+  #hud-tl .gesture{margin-top:10px;font-size:18px;color:var(--gold-bright);
+    border-left:2px solid var(--gold);padding-left:8px;min-height:24px;}
+  #hud-countdown{margin-top:8px;font-size:30px;color:#ffcf6a;letter-spacing:2px;
+    opacity:0;transition:opacity .4s;text-shadow:0 0 16px rgba(255,207,106,.8);}
+  #btn-mode{margin-top:14px;pointer-events:auto;cursor:pointer;
+    background:rgba(20,16,10,.6);border:1px solid var(--gold);
+    color:var(--gold-bright);font-family:inherit;font-size:18px;
+    padding:7px 16px;border-radius:2px;letter-spacing:1px;
+    transition:all .25s;backdrop-filter:blur(3px);}
+  #btn-mode:hover{background:rgba(212,175,55,.25);box-shadow:0 0 14px rgba(212,175,55,.5);}
+  #btn-mute{margin-top:8px;pointer-events:auto;cursor:pointer;
+    background:rgba(20,16,10,.6);border:1px solid var(--gold);
+    color:var(--gold-bright);font-family:inherit;font-size:18px;
+    padding:7px 16px;border-radius:2px;letter-spacing:1px;transition:all .25s;backdrop-filter:blur(3px);}
+  #btn-mute:hover{background:rgba(212,175,55,.25);box-shadow:0 0 14px rgba(212,175,55,.5);}
+
+  /* ---------- 幕名标注（每幕顶部居中） ---------- */
+  #act-label{position:fixed;top:20px;left:50%;transform:translateX(-50%);
+    z-index:11;font-size:34px;color:var(--gold-bright);letter-spacing:.4em;
+    text-shadow:0 0 22px rgba(212,175,55,.7),0 0 4px #000;opacity:0;
+    transition:opacity 1s;pointer-events:none;text-indent:.4em;}
+
+  /* ---------- 底部操作提示（每幕） ---------- */
+  #act-hint{position:fixed;bottom:42px;left:50%;transform:translateX(-50%);
+    z-index:11;font-size:23px;color:var(--gold-bright);letter-spacing:4px;
+    opacity:0;transition:opacity .8s;pointer-events:none;text-align:center;
+    text-shadow:0 0 14px rgba(0,0,0,.95);max-width:90vw;}
+
+  /* ---------- 摄像头（缩小） ---------- */
+  #cam-wrap{position:fixed;top:18px;right:20px;z-index:10;width:240px;}
+  #cam-box{position:relative;width:240px;height:180px;
+    border:1px solid rgba(212,175,55,.6);border-radius:3px;overflow:hidden;
+    box-shadow:0 0 18px rgba(0,0,0,.7);background:#000;opacity:.8;}
+  #cam-video{position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;transform:scaleX(-1);}
+  #cam-overlay{position:absolute;inset:0;width:100%;height:100%;
+    transform:scaleX(-1);}
+  #cam-off{position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;color:var(--gold);font-size:18px;text-align:center;
+    background:rgba(10,8,6,.85);padding:10px;letter-spacing:1px;}
+  #btn-shot{margin-top:8px;width:240px;pointer-events:auto;cursor:pointer;
+    background:rgba(20,16,10,.6);border:1px solid var(--gold);
+    color:var(--gold-bright);font-family:inherit;font-size:19px;
+    padding:8px;border-radius:2px;letter-spacing:4px;transition:all .25s;
+    backdrop-filter:blur(3px);}
+  #btn-shot:hover{background:rgba(212,175,55,.25);box-shadow:0 0 14px rgba(212,175,55,.5);}
+
+  /* ---------- 第一幕 DOM 层 ---------- */
+  #act1{position:fixed;inset:0;z-index:8;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;
+    transition:opacity 1s;}
+  #act1 .title{font-size:clamp(48px,9vw,120px);color:var(--gold-bright);
+    letter-spacing:.18em;text-shadow:0 0 30px rgba(212,175,55,.8),
+    0 0 60px rgba(200,82,30,.5);transition:all 1.2s cubic-bezier(.16,1,.3,1);
+    will-change:transform;}
+  #birth-wrap{margin-top:36px;display:flex;flex-direction:column;gap:18px;align-items:center;
+    pointer-events:auto;transition:opacity .8s;}
+  #zodiac-label{font-size:21px;color:var(--gold-bright);letter-spacing:5px;
+    text-shadow:0 0 12px rgba(212,175,55,.6);}
+  #birth-selects{display:flex;gap:12px;}
+  #birth-selects select{background:rgba(15,12,8,.85);color:var(--gold-bright);
+    border:1px solid var(--gold);border-radius:5px;padding:10px 16px;font-size:20px;
+    font-family:inherit;cursor:pointer;outline:none;letter-spacing:1px;}
+  #birth-selects select:hover{border-color:var(--gold-bright);box-shadow:0 0 12px rgba(212,175,55,.5);}
+  #zodiac-show{font-size:24px;color:var(--gold-bright);letter-spacing:6px;min-height:30px;
+    text-shadow:0 0 14px rgba(212,175,55,.7);}
+  .zodiac-cell{background:rgba(15,12,8,.7);border:1px solid var(--gold);
+    color:var(--gold-bright);font-family:inherit;font-size:24px;
+    width:78px;height:60px;display:flex;align-items:center;justify-content:center;
+    border-radius:4px;cursor:pointer;transition:all .25s;backdrop-filter:blur(4px);
+    letter-spacing:2px;}
+  .zodiac-cell:hover{background:rgba(212,175,55,.2);box-shadow:0 0 14px rgba(212,175,55,.5);}
+  .zodiac-cell.sel{background:linear-gradient(135deg,rgba(200,82,30,.5),rgba(212,175,55,.45));
+    box-shadow:0 0 22px rgba(212,175,55,.8);border-color:var(--gold-bright);}
+  #btn-confirm{background:linear-gradient(135deg,rgba(200,82,30,.35),rgba(212,175,55,.3));
+    border:1px solid var(--gold-bright);color:var(--gold-bright);
+    font-family:inherit;font-size:25px;padding:12px 36px;border-radius:3px;
+    letter-spacing:6px;cursor:pointer;transition:all .3s;backdrop-filter:blur(4px);
+    opacity:.45;pointer-events:none;}
+  #btn-confirm.ready{opacity:1;pointer-events:auto;}
+  #btn-confirm.ready:hover{box-shadow:0 0 26px rgba(212,175,55,.7);
+    background:linear-gradient(135deg,rgba(200,82,30,.55),rgba(212,175,55,.5));}
+
+  /* ---------- 过场闪白 ---------- */  #flash{position:fixed;inset:0;z-index:50;background:#fff;opacity:0;
+    pointer-events:none;}
+  /* 拍立得 */
+  #polaroid{position:fixed;left:50%;top:50%;z-index:40;
+    transform:translate(-50%,-50%) scale(.7);opacity:0;pointer-events:none;
+    background:#f4efe2;padding:14px 14px 54px 14px;border-radius:3px;
+    box-shadow:0 18px 60px rgba(0,0,0,.8);transition:opacity .5s,transform .5s;}
+  #polaroid canvas{display:block;width:340px;height:255px;background:#111;}
+  #polaroid .cap{position:absolute;bottom:16px;left:0;width:100%;text-align:center;
+    color:#3a332a;font-size:15px;letter-spacing:3px;}
+
+  /* ---------- 加载/提示 ---------- */
+  #boot{position:fixed;inset:0;z-index:60;background:#050505;display:flex;
+    align-items:center;justify-content:center;flex-direction:column;
+    color:var(--gold);letter-spacing:4px;transition:opacity 1s;}
+  #boot .t{font-size:48px;margin-bottom:18px;text-shadow:0 0 24px rgba(212,175,55,.6);}
+  #boot .s{font-size:20px;opacity:.7;}
+  .hidden{opacity:0!important;}
+  .gone{display:none!important;}
+
+  /* 水波纹光标 */
+  #cursor-ring{position:fixed;z-index:30;width:46px;height:46px;
+    margin-left:-23px;margin-top:-23px;border-radius:50%;pointer-events:none;
+    border:2px solid var(--gold-bright);box-shadow:0 0 18px rgba(212,175,55,.7),
+    inset 0 0 12px rgba(212,175,55,.4);opacity:0;transition:opacity .3s;
+    will-change:transform;}
+  #cursor-ring::after{content:"";position:absolute;inset:-8px;border-radius:50%;
+    border:1px solid rgba(212,175,55,.3);}
+  /* 占辞文字：清晰篆书，居中，金光，仅微动呼吸 */
+  #oracle-text{position:fixed;left:50%;top:36%;z-index:9;
+    transform:translate(-50%,-50%) scale(.96);opacity:0;pointer-events:none;
+    font-family:"maobi","STKaiti","KaiTi",serif;
+    font-size:clamp(26px,4vw,52px);letter-spacing:.08em;white-space:nowrap;max-width:70vw;
+    color:#ffe9a8;text-shadow:0 0 24px rgba(255,207,106,.85),0 0 54px rgba(200,82,30,.55),0 0 4px rgba(0,0,0,.6);
+    transition:opacity 1.4s ease,transform 1.4s ease;}
+  /* 运势模块（占辞下方，中下部） */
+  #fortune-panel{position:fixed;left:50%;top:52%;transform:translate(-50%,0) scale(.96);
+    z-index:9;width:min(880px,92vw);opacity:0;pointer-events:none;
+    transition:opacity 1.2s ease,transform 1.2s ease;
+    font-family:"maobi","STKaiti","KaiTi",serif;color:var(--gold-bright);
+    background:rgba(12,9,5,.45);border:1px solid rgba(212,175,55,.4);border-radius:10px;
+    padding:18px 26px;backdrop-filter:blur(6px);box-shadow:0 0 30px rgba(0,0,0,.5);}
+  #fortune-panel.show{opacity:1;transform:translate(-50%,0) scale(1);}
+  #fortune-panel .row{display:flex;flex-wrap:wrap;gap:18px 28px;justify-content:center;
+    font-size:22px;letter-spacing:1px;}
+  #fortune-panel .item{display:flex;align-items:center;gap:6px;}
+  #fortune-panel .bar{display:inline-block;width:64px;height:8px;border-radius:4px;
+    background:rgba(255,255,255,.12);overflow:hidden;vertical-align:middle;}
+  #fortune-panel .bar i{display:block;height:100%;background:linear-gradient(90deg,#c8521e,#ffe9a8);}
+  #fortune-panel .score{font-size:32px;color:#ffcf6a;text-shadow:0 0 12px rgba(255,207,106,.7);}
+  #fortune-panel .color-dot{width:16px;height:16px;border-radius:50%;display:inline-block;
+    border:1px solid rgba(255,255,255,.5);vertical-align:middle;}
+  #fortune-panel .note{margin-top:14px;font-size:21px;line-height:1.7;text-align:center;
+    color:var(--paper);opacity:.92;border-top:1px solid rgba(212,175,55,.25);padding-top:12px;}
+  /* 选项文字（叠在金轮廓中央，清晰） */
+  #opt-labels{position:fixed;inset:0;z-index:8;pointer-events:none;}
+  .opt-label{position:absolute;transform:translate(-50%,-50%);
+    font-family:"maobi","STKaiti","KaiTi",serif;font-size:34px;letter-spacing:.1em;
+    color:#ffe9a8;text-shadow:0 0 16px rgba(212,175,55,.9),0 0 4px #000;
+    opacity:0;transition:opacity .6s;white-space:nowrap;}
+    #oracle-text.show{opacity:1;transform:translate(-50%,-50%) scale(1);
+    animation:oracleBreath 4.5s ease-in-out infinite;}
+  @keyframes oracleBreath{
+    0%,100%{transform:translate(-50%,-50%) scale(1.0) translateY(0);text-shadow:0 0 24px rgba(255,207,106,.85),0 0 54px rgba(200,82,30,.55);}
+    50%{transform:translate(-50%,-51.5%) scale(1.012) translateY(0);text-shadow:0 0 34px rgba(255,207,106,1),0 0 70px rgba(200,82,30,.7);}
+  }
+</style>
+</head>
+<body>
+
+<div id="canvas-root"></div>
+
+<!-- 左上 HUD -->
+<div class="hud" id="hud-tl">
+  <div class="big" id="hud-date">——</div>
+  <div class="row" id="hud-time">——</div>
+  <div class="luck" id="hud-luck">宜 —— · 忌 ——</div>
+  <div class="gesture" id="hud-gesture">手势：待命</div>
+  <div id="hud-countdown"></div>
+  <button id="btn-mode">切换控制（手势/鼠标）</button>
+  <button id="btn-mute">声音：开</button>
+</div>
+
+<!-- 幕名（顶部居中） / 底部操作提示 -->
+<div id="act-label"></div>
+<div id="act-hint"></div>
+
+<!-- 占辞文字（清晰DOM显示，仅微动） -->
+<div id="oracle-text"></div>
+<div id="fortune-panel"></div>
+<div id="opt-labels"></div>
+
+<!-- 右上 摄像头 -->
+<div id="cam-wrap">
+  <div id="cam-box">
+    <video id="cam-video" autoplay playsinline muted></video>
+    <canvas id="cam-overlay" width="320" height="240"></canvas>
+    <div id="cam-off" class="gone">摄像头未启用<br>（鼠标模式）</div>
+  </div>
+  <button id="btn-shot">拍 · 刻 影</button>
+</div>
+
+<!-- 第一幕 -->
+<div id="act1">
+  <div class="title" id="title">貞問·今契</div>
+  <div id="birth-wrap">
+    <div id="zodiac-label">择 尔 生 辰</div>
+    <div id="birth-selects">
+      <select id="sel-year"></select>
+      <select id="sel-month"></select>
+      <select id="sel-day"></select>
+    </div>
+    <div id="zodiac-show">　</div>
+    <button id="btn-confirm">刻辞卜甲</button>
+  </div>
+</div>
+
+<!-- 过场 / 拍立得 / 光标 -->
+<div id="flash"></div>
+<div id="polaroid"><canvas width="340" height="255"></canvas><div class="cap">今 契</div></div>
+<div id="cursor-ring"></div>
+
+<!-- 启动遮罩 -->
+<div id="boot">
+  <div class="t">貞問·今契</div>
+  <div class="s" id="boot-s">点击任意处 · 燃起卜火</div>
+</div>
+
+<!-- 音频 -->
+<audio id="a-bgm"  src="bgm.mp3"  loop></audio>
+<audio id="a-click" src="click.mp3"></audio>
+<audio id="a-kacha" src="kacha.mp3"></audio>
+<audio id="a-fire"  src="fire.mp3"></audio>
+<audio id="a-daan"  src="daan.mp3"></audio>
+
+<!-- ============== MediaPipe Hands（全局 script） ============== -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<!-- ============== Three.js ESM importmap ============== -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }     from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }     from 'three/addons/postprocessing/ShaderPass.js';
+
+/* =====================================================================
+   CONFIG —— 性能与功能集中调节区（视觉优先，卡顿时调小数字）
+   ===================================================================== */
+const CONFIG = {
+  BG_PARTICLES:    2600,        // 背景金色微粒子数量
+  RING_GLYPHS:     180,         // 第二幕星环文字实例数
+  RESULT_PARTICLES:7000,        // 第四幕占辞聚合粒子数（取样上限）
+  BLOOM_STRENGTH:  1.15,
+  BLOOM_RADIUS:    0.55,
+  BLOOM_THRESHOLD: 0.55,
+  DAMP:            4.0,          // 镜头/物体平滑系数（越大越快）
+  PINCH_HOLD:      1.0,         // 捏合确认秒数
+  LOCK_HOLD:       3.0,         // 第二幕握拳锁定秒数
+  BURN_SECONDS:    3.0,         // 第三幕火把划过点燃时长
+  CRACK_SECONDS:   3.5,         // 第三幕裂纹蔓延时长
+  BUTTERFLY_SEC:   5.0,         // 第四幕蝴蝶飞散时长
+  RESULT_SHOW:     15.0,        // 第四幕占辞展示时长
+  COUNTDOWN_FROM:  5,           // 占辞结束前倒计时秒数
+};
+const PATHS = { img:"./", audio:"./" };
+
+/* =====================================================================
+   占辞数据 —— 以"选项文字"为准的四类映射；前缀+卦辞整条入粒子
+   ===================================================================== */
+const ORACLES = {
+  "事业":[
+    "卜曰：拨云见日，前路无碍。","占曰：枯木生花，所求皆得。",
+    "贞：乘风破浪，化险为夷。","卜曰：金凤展翅，直上九霄。",
+    "占曰：宝剑出匣，锋芒始露。","王占曰：静中藏势，动则失衡。",
+    "贞：水到渠成，顺理成章。","卜曰：猛虎出林，势不可挡。",
+    "占曰：得天独厚，谋事必成。","贞：明珠出海，光耀四方。",
+    "卜曰：鹏程万里，风平浪静。","占曰：云开雾散，豁然开朗。",
+    "王占曰：大吉，贵人指路。"
+  ],
+  "财运":[
+    "贞：行水无阻，财源自入。","占曰：天地交泰，万物咸亨。",
+    "占曰：源远流长，基业长青。","贞：玄鸟降之，百草丰茂。",
+    "贞：龙潜深渊，待时而动。","贞：鸾鸟自歌，凤鸟自舞。",
+    "王占曰：吉，求财得财。","贞：星辰照临，百事吉泰。",
+    "卜曰：瑞兽行野，步生莲华。","占曰：灵泉涌玉，久旱逢雨。",
+    "占曰：扶桑生华，利有攸往。"
+  ],
+  "健康":[
+    "卜曰：神龟呈瑞，身康体泰。","占曰：灵草含香，百病不侵。",
+    "贞：福泽深厚，灾厄不临。","卜曰：飞鸟还林，安居无忧。",
+    "占曰：岁寒松柏，本色常青。","王占曰：大吉，百事无忧。",
+    "贞：日出东方，长夜将明。","卜曰：紫气盈门，福寿绵长。",
+    "占曰：灵玉无瑕，遇事呈祥。","贞：静水流深，安忍不动。",
+    "卜曰：吉人天相，百无禁忌。","占曰：和气致祥，门庭生辉。",
+    "王占曰：无咎，出入平安。"
+  ],
+  "感情":[
+    "贞：同心同德，金石为开。","卜曰：琴瑟和鸣，家道兴旺。",
+    "占曰：鸿雁传书，喜讯将至。","王占曰：吉，乘风御气。",
+    "卜曰：春风化雨，万物生发。","占曰：良禽择木，得遇知音。",
+    "王占曰：吉，得道多助。","贞：月圆花好，所思如愿。",
+    "卜曰：清风明月，不期而遇。","占曰：积善之家，必有余庆。",
+    "贞：玉树繁花，结缘四方。","卜曰：金风玉露，顺遂人和。",
+    "占曰：天地交泰，万物皆欢。"
+  ]
+};
+// 第一幕骨片 → 类别（以选项文字为准）
+const OPTIONS = [
+  { key:"事业", img:"gupian-2.png", label:"事 业" },
+  { key:"感情", img:"gupian-6.png", label:"感 情" },
+  { key:"财运", img:"gupian-4.png", label:"财 运" },
+  { key:"健康", img:"gupian-8.png", label:"健 康" },
+];
+
+/* =====================================================================
+   资源兜底系统 —— 缺失文件自动生成古朴 Canvas 纹理，永不黑屏
+   ===================================================================== */
+const texLoader = new THREE.TextureLoader();
+const _texCache = {};
+
+function noiseTexture(w,h,draw){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');
+  draw(x,w,h);
+  // 古朴噪点
+  const id=x.getImageData(0,0,w,h),d=id.data;
+  for(let i=0;i<d.length;i+=4){
+    const n=(Math.random()-0.5)*38;
+    d[i]+=n;d[i+1]+=n;d[i+2]+=n;
+  }
+  x.putImageData(id,0,0);
+  return c;
+}
+// 兜底：甲骨片轮廓（不规则多边形 + 灼裂）
+function fallbackGupian(seed){
+  // 透明底 + 不规则金色描边轮廓，不填充
+  const c=document.createElement('canvas'); c.width=512; c.height=680;
+  const x=c.getContext('2d'); x.clearRect(0,0,512,680);
+  const cx=256, cy=340, r=200;
+  const pts=[]; const n=16;
+  let sd=seed*9.7+1;
+  const rnd=()=>{ sd=(sd*9301+49297)%233280; return sd/233280; };
+  for(let i=0;i<=n;i++){
+    const a=i/n*Math.PI*2;
+    const rr=r*(0.7+0.42*Math.abs(Math.sin(seed*1.3+i*1.7))+(rnd()-0.5)*0.18);
+    pts.push([cx+Math.cos(a)*rr, cy+Math.sin(a)*rr*1.18]);
+  }
+  const drawPath=()=>{ x.beginPath(); x.moveTo(pts[0][0],pts[0][1]);
+    for(let i=1;i<pts.length;i++){ const p=pts[i], pm=pts[i-1];
+      x.quadraticCurveTo(pm[0],pm[1],(p[0]+pm[0])/2,(p[1]+pm[1])/2); }
+    x.closePath(); };
+  x.lineJoin='round'; x.lineCap='round';
+  x.shadowColor='rgba(212,175,55,0.9)'; x.shadowBlur=24;
+  x.strokeStyle='rgba(212,175,55,0.55)'; x.lineWidth=14; drawPath(); x.stroke();
+  x.shadowBlur=0;
+  x.strokeStyle='#e8c14a'; x.lineWidth=7; drawPath(); x.stroke();
+  x.strokeStyle='#fff0b8'; x.lineWidth=2.5; drawPath(); x.stroke();
+  x.strokeStyle='rgba(212,175,55,0.5)'; x.lineWidth=3;
+  for(let k=0;k<3;k++){ x.beginPath(); let px=cx+(rnd()-0.5)*120, py=cy-100+k*90;
+    x.moveTo(px,py); for(let s=0;s<3;s++){ px+=(rnd()-0.5)*100; py+=40; x.lineTo(px,py);} x.stroke(); }
+  return c;
+}
+// 兜底：星环文字（古文笔画感）
+function fallbackGlyph(seed){
+  return noiseTexture(128,128,(x,w,h)=>{
+    x.clearRect(0,0,w,h);
+    x.strokeStyle='rgba(240,235,220,.92)';x.lineWidth=7;x.lineCap='round';
+    const cx=w/2,cy=h/2;
+    const strokes=2+Math.floor(Math.abs(Math.sin(seed))*3);
+    for(let s=0;s<strokes;s++){
+      x.beginPath();
+      let px=cx+(Math.random()-.5)*60,py=cy+(Math.random()-.5)*60;
+      x.moveTo(px,py);
+      for(let i=0;i<3;i++){px+=(Math.random()-.5)*70;py+=(Math.random()-.5)*70;x.lineTo(px,py);}
+      x.stroke();
+    }
+  });
+}
+// 兜底：圆环法阵
+function fallbackLunpan(){
+  return noiseTexture(1024,1024,(x,w,h)=>{
+    x.clearRect(0,0,w,h);const cx=w/2,cy=h/2;
+    for(let ring=0;ring<3;ring++){
+      const r=300+ring*90;
+      x.strokeStyle=`rgba(212,175,55,${.5-ring*.12})`;x.lineWidth=3;
+      x.beginPath();x.arc(cx,cy,r,0,Math.PI*2);x.stroke();
+      const cnt=24+ring*8;
+      for(let i=0;i<cnt;i++){
+        const a=i/cnt*Math.PI*2;
+        x.save();x.translate(cx+Math.cos(a)*r,cy+Math.sin(a)*r);x.rotate(a);
+        x.strokeStyle='rgba(212,175,55,.45)';x.lineWidth=4;
+        x.beginPath();x.moveTo(-8,-8);x.lineTo(8,8);x.moveTo(8,-8);x.lineTo(-4,6);x.stroke();
+        x.restore();
+      }
+    }
+  });
+}
+// 兜底：玄鸟纹
+function fallbackXuanniao(){
+  return noiseTexture(256,256,(x,w,h)=>{
+    x.clearRect(0,0,w,h);
+    x.fillStyle='rgba(212,175,55,.85)';
+    x.beginPath();
+    x.moveTo(40,128);x.quadraticCurveTo(128,40,210,90);
+    x.quadraticCurveTo(150,110,170,160);x.quadraticCurveTo(120,120,40,128);
+    x.fill();
+    x.beginPath();x.moveTo(120,120);x.quadraticCurveTo(140,200,90,210);
+    x.quadraticCurveTo(120,160,100,130);x.fill();
+  });
+}
+// 兜底：主甲骨贴图
+function fallbackBone(){
+  return noiseTexture(700,900,(x,w,h)=>{
+    const g=x.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,'#6b5838');g.addColorStop(.5,'#4a3a22');g.addColorStop(1,'#2e2212');
+    x.fillStyle=g;x.fillRect(0,0,w,h);
+    x.strokeStyle='rgba(20,12,6,.5)';x.lineWidth=2;
+    for(let k=0;k<14;k++){
+      x.beginPath();let px=Math.random()*w,py=0;x.moveTo(px,py);
+      for(let s=0;s<10;s++){px+=(Math.random()-.5)*60;py+=h/10;x.lineTo(px,py);}
+      x.stroke();
+    }
+  });
+}
+
+// 统一加载：先试真实文件，失败用兜底 canvas
+function loadTex(name, fallbackFn, onReady){
+  if(_texCache[name]){ onReady(_texCache[name]); return; }
+  texLoader.load(
+    PATHS.img+name,
+    (t)=>{ t.colorSpace=THREE.SRGBColorSpace; _texCache[name]=t; onReady(t); },
+    undefined,
+    ()=>{ const t=new THREE.CanvasTexture(fallbackFn()); t.colorSpace=THREE.SRGBColorSpace;
+          _texCache[name]=t; onReady(t); }
+  );
+}
+
+// 去黑底加载：把黑底图按亮度转成带透明通道的贴图（黑→透明，亮→实）
+// strength: alpha 提升强度；keepColor: 是否保留原色（true=龟甲真实色，false=染成纯金线）
+function loadTexCutBlack(name, fallbackFn, onReady, opts={}){
+  const key=name+'|cut';
+  if(_texCache[key]){ onReady(_texCache[key]); return; }
+  const strength=opts.strength!=null?opts.strength:1.0;
+  const img=new Image();
+  img.crossOrigin='anonymous';
+  const build=(srcImg, ok)=>{
+    const cv=document.createElement('canvas');
+    const w=Math.min(srcImg.width||1024,1400), h=Math.min(srcImg.height||1024,1400);
+    cv.width=w; cv.height=h;
+    const cx=cv.getContext('2d');
+    cx.drawImage(srcImg,0,0,w,h);
+    try{
+      const id=cx.getImageData(0,0,w,h), d=id.data;
+      for(let i=0;i<d.length;i+=4){
+        const lum=(d[i]*0.299+d[i+1]*0.587+d[i+2]*0.114); // 0-255
+        let a=Math.min(255, (lum/255)*255*strength*1.6);  // 越亮越不透明
+        a=lum<18?0:a;                                      // 近黑全透明
+        d[i+3]=a;
+      }
+      cx.putImageData(id,0,0);
+    }catch(e){ /* 跨域取像素失败则直接用原图 */ }
+    const t=new THREE.CanvasTexture(cv);
+    t.colorSpace=THREE.SRGBColorSpace; _texCache[key]=t; ok(t);
+  };
+  img.onload=()=>build(img,onReady);
+  let triedAlt=false;
+  img.onerror=()=>{
+    // 先尝试大小写不同的扩展名（如 .PNG），再走兜底
+    if(!triedAlt && /\.png$/i.test(name)){
+      triedAlt=true;
+      const alt = name.endsWith('.png') ? name.replace(/\.png$/,'.PNG') : name.replace(/\.PNG$/,'.png');
+      img.src=PATHS.img+alt; return;
+    }
+    const t=new THREE.CanvasTexture(fallbackFn());
+    t.colorSpace=THREE.SRGBColorSpace; _texCache[key]=t; onReady(t);
+  };
+  img.src=PATHS.img+name;
+}
+
+/* =====================================================================
+   音频系统
+   ===================================================================== */
+const AUDIO={
+  bgm:document.getElementById('a-bgm'), click:document.getElementById('a-click'),
+  kacha:document.getElementById('a-kacha'), fire:document.getElementById('a-fire'),
+  daan:document.getElementById('a-daan'),
+};
+let audioReady=false, muted=false;
+function unlockAudio(){
+  if(audioReady) return; audioReady=true;
+  // 预热除bgm外的一次性音效；bgm单独启动，避免被forEach里的异步pause掐断
+  Object.entries(AUDIO).forEach(([k,a])=>{
+    if(k==='bgm') return;
+    a.play().then(()=>{a.pause();a.currentTime=0;}).catch(()=>{});
+  });
+  AUDIO.bgm.loop=true; AUDIO.bgm.volume=0.5; AUDIO.bgm.currentTime=0;
+  const p=AUDIO.bgm.play();
+  if(p&&p.catch) p.catch(err=>{ console.warn('bgm播放失败:',err);
+    const retry=()=>{ AUDIO.bgm.play().catch(()=>{}); window.removeEventListener('pointerdown',retry); };
+    window.addEventListener('pointerdown',retry);
+  });
+}
+function sfx(name,vol=0.8){
+  if(muted) return;
+  const a=AUDIO[name]; if(!a) return;
+  try{ a.currentTime=0; a.volume=vol; a.play().catch(()=>{}); }catch(e){}
+}
+document.getElementById('btn-mute').addEventListener('click',(e)=>{
+  e.stopPropagation();
+  muted=!muted;
+  document.getElementById('btn-mute').textContent = muted?'声音：关':'声音：开';
+  Object.values(AUDIO).forEach(a=>{ a.muted=muted; });
+  if(!muted && AUDIO.bgm){ AUDIO.bgm.muted=false; AUDIO.bgm.play().catch(()=>{}); }
+});
+
+/* =====================================================================
+   左上 HUD —— 公历 / 干支时辰 / 黄历宜忌
+   ===================================================================== */
+const GAN=["甲","乙","丙","丁","戊","己","庚","辛","壬","癸"];
+const ZHI=["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+const SHI_NAME=["子","丑","寅","卯","辰","巳","午","未","申","酉","戌","亥"];
+function ganzhiDay(date){ // 以1900-01-31为甲子日基准
+  const base=Date.UTC(1900,0,31);
+  const days=Math.floor((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-base)/86400000);
+  return GAN[((days%10)+10)%10]+ZHI[((days%12)+12)%12];
+}
+function shiChen(date){ // 时辰：23-1子，每两小时
+  const h=date.getHours();
+  const idx=Math.floor(((h+1)%24)/2);
+  // 日干推时干：日干*2 + 时支序 起算
+  const dayGanIdx=(()=>{const base=Date.UTC(1900,0,31);
+    const days=Math.floor((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-base)/86400000);
+    return ((days%10)+10)%10;})();
+  const shiGan=GAN[((dayGanIdx%5)*2+idx)%10];
+  return shiGan+SHI_NAME[idx]+"时";
+}
+// 风格化宜忌（非权威，按干支日索引取词条）
+const YI=["祈福","出行","纳采","祭祀","会友","求嗣","开光","结网","沐浴","入学","裁衣","安床"];
+const JI=["动土","破土","词讼","开市","掘井","安葬","伐木","架马","경营","远行"].map(s=>s.replace("경영","经营"));
+function huangli(date){
+  const base=Date.UTC(1900,0,31);
+  const days=Math.floor((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate())-base)/86400000);
+  const yi=YI[((days%YI.length)+YI.length)%YI.length];
+  const yi2=YI[((days*3+2)%YI.length+YI.length)%YI.length];
+  const ji=JI[((days*7)%JI.length+JI.length)%JI.length];
+  return {yi:yi+" "+yi2, ji};
+}
+const elDate=document.getElementById('hud-date'),
+      elTime=document.getElementById('hud-time'),
+      elLuck=document.getElementById('hud-luck'),
+      elGesture=document.getElementById('hud-gesture');
+function updateHud(){
+  const d=new Date();
+  const pad=n=>String(n).padStart(2,'0');
+  elDate.textContent=`${d.getFullYear()}年${pad(d.getMonth()+1)}月${pad(d.getDate())}日`;
+  elTime.textContent=`${ganzhiDay(d)}日 · ${shiChen(d)} · ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  const hl=huangli(d);
+  elLuck.textContent=`宜 ${hl.yi} · 忌 ${hl.ji}`;
+}
+setInterval(updateHud,1000); updateHud();
+function setGesture(t){ elGesture.textContent="手势："+t; }
+
+/* ---------- 幕名 / 底部提示 / 倒计时 ---------- */
+const elActLabel=document.getElementById('act-label');
+const elActHint=document.getElementById('act-hint');
+const elCountdown=document.getElementById('hud-countdown');
+function showActLabel(name){ elActLabel.textContent=name; elActLabel.style.opacity='1'; }
+function showHint(t){ elActHint.textContent=t; elActHint.style.opacity= t?'1':'0'; }
+function showCountdown(n){ elCountdown.textContent='占辞将逝 '+n; elCountdown.style.opacity='1'; }
+function hideCountdown(){ elCountdown.style.opacity='0'; }
+
+/* ---------- 生肖点选 ---------- */
+const ZODIAC=["鼠","牛","虎","兔","龙","蛇","马","羊","猴","鸡","狗","猪"];
+let chosenZodiac=null, birthReady=false;
+(function buildBirthSelects(){
+  const yEl=document.getElementById('sel-year'),
+        mEl=document.getElementById('sel-month'),
+        dEl=document.getElementById('sel-day'),
+        zShow=document.getElementById('zodiac-show'),
+        btn=document.getElementById('btn-confirm');
+  const opt=(el,val,txt)=>{const o=document.createElement('option');o.value=val;o.textContent=txt;el.appendChild(o);};
+  opt(yEl,'','年'); for(let y=2025;y>=1940;y--) opt(yEl,y,y+'年');
+  opt(mEl,'','月'); for(let m=1;m<=12;m++) opt(mEl,m,m+'月');
+  opt(dEl,'','日'); for(let d=1;d<=31;d++) opt(dEl,d,d+'日');
+  const onChange=()=>{
+    sfx('click');
+    const y=yEl.value,m=mEl.value,d=dEl.value;
+    if(y){ chosenZodiac=ZODIAC[((+y-4)%12+12)%12]; zShow.textContent='属 '+chosenZodiac; }
+    else { chosenZodiac=null; zShow.textContent='　'; }
+    if(y&&m&&d){ birthReady=true; btn.classList.add('ready'); }
+    else { birthReady=false; btn.classList.remove('ready'); }
+  };
+  [yEl,mEl,dEl].forEach(el=>el.addEventListener('change',onChange));
+})();
+
+
+/* =====================================================================
+   Three.js 场景 / 渲染 / 后期 Bloom
+   ===================================================================== */
+const W=()=>window.innerWidth, H=()=>window.innerHeight;
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(W(),H());
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.0;
+document.getElementById('canvas-root').appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x05040a,0.012);
+const camera=new THREE.PerspectiveCamera(55,W()/H(),0.1,2000);
+camera.position.set(0,6,42);
+const camTarget=new THREE.Vector3(0,0,0);
+
+scene.add(new THREE.AmbientLight(0xfff0d8,3.2));
+const dirLight=new THREE.DirectionalLight(0xffe9c8,1.1);dirLight.position.set(0,10,60);scene.add(dirLight);
+const keyLight=new THREE.PointLight(0xffd98a,1.6,600);
+keyLight.position.set(30,40,120); scene.add(keyLight);
+const rimLight=new THREE.PointLight(0xc8521e,1.4,300);
+rimLight.position.set(-40,-10,30); scene.add(rimLight);
+
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(W(),H()),
+  CONFIG.BLOOM_STRENGTH,CONFIG.BLOOM_RADIUS,CONFIG.BLOOM_THRESHOLD);
+composer.addPass(bloom);
+
+window.addEventListener('resize',()=>{
+  camera.aspect=W()/H();camera.updateProjectionMatrix();
+  renderer.setSize(W(),H());composer.setSize(W(),H());
+});
+
+/* ---------- 背景金色微粒子（左→右漂浮，景深） ---------- */
+let bgParticles;
+(function buildBg(){
+  const n=CONFIG.BG_PARTICLES;
+  const geo=new THREE.BufferGeometry();
+  const pos=new Float32Array(n*3), spd=new Float32Array(n), siz=new Float32Array(n);
+  for(let i=0;i<n;i++){
+    pos[i*3]=(Math.random()-0.5)*240;
+    pos[i*3+1]=(Math.random()-0.5)*150;
+    pos[i*3+2]=(Math.random()-0.5)*180-20;
+    spd[i]=0.3+Math.random()*1.2; siz[i]=0.5+Math.random()*2.2;
+  }
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('aSpeed',new THREE.BufferAttribute(spd,1));
+  geo.setAttribute('aSize',new THREE.BufferAttribute(siz,1));
+  const mat=new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+    uniforms:{uTime:{value:0}},
+    vertexShader:`attribute float aSpeed; attribute float aSize; uniform float uTime;
+      varying float vA;
+      void main(){
+        vec3 p=position;
+        p.x=mod(p.x+uTime*aSpeed+120.0,240.0)-120.0;
+        p.y+=sin(uTime*0.2+aSpeed*6.0)*1.5;
+        vec4 mv=modelViewMatrix*vec4(p,1.0);
+        gl_PointSize=aSize*(300.0/-mv.z);
+        gl_Position=projectionMatrix*mv;
+        vA=clamp(1.0+mv.z/200.0,0.0,1.0);
+      }`,
+    fragmentShader:`varying float vA;
+      void main(){
+        vec2 c=gl_PointCoord-0.5; float d=length(c);
+        if(d>0.5) discard;
+        float a=smoothstep(0.5,0.0,d)*vA;
+        gl_FragColor=vec4(0.83,0.69,0.34,a*0.9);
+      }`
+  });
+  bgParticles=new THREE.Points(geo,mat); scene.add(bgParticles);
+})();
+
+/* ---------- 序辞/命辞背景：圆环法阵（DOM层，半圆露底、顺时针转） ---------- */
+let lunpanMesh=null;   // 兼容旧引用，置空
+const lunpanEl=document.createElement('div');
+lunpanEl.style.cssText='position:fixed;left:50%;bottom:0;z-index:2;'
+  +'width:175vh;height:175vh;transform:translate(-50%,55%);'   // 下移一半多→半圆露底
+  +'pointer-events:none;opacity:0;transition:opacity 1.2s;'
+  +'background-size:contain;background-repeat:no-repeat;background-position:center;'
+  +'mix-blend-mode:screen;will-change:transform;';
+document.body.insertBefore(lunpanEl, document.getElementById('canvas-root').nextSibling);
+// 加载 lunpan.png；失败用兜底canvas转dataURL
+loadLunpanDom();
+function loadLunpanDom(){
+  const img=new Image();
+  img.onload=()=>{ lunpanEl.style.backgroundImage=`url(${PATHS.img}lunpan.png)`; };
+  img.onerror=()=>{ const c=fallbackLunpan(); lunpanEl.style.backgroundImage=`url(${c.toDataURL()})`; };
+  img.src=PATHS.img+'lunpan.png';
+}
+let lunpanAngle=0;
+function updateLunpan(dt){
+  // 仅序辞/命辞显示
+  const show=(state===STATE.ACT1_INTRO||state===STATE.ACT1_SELECT);
+  lunpanEl.style.opacity= show? '0.45':'0';
+  lunpanAngle+=dt*6;   // 顺时针(deg/s)
+  lunpanEl.style.transform=`translate(-50%,55%) rotate(${lunpanAngle}deg)`;
+}
+/* ---------- 标题萤火虫 + 缠绕金线（覆盖canvas，仅第一幕显示） ---------- */
+const titleFx=document.createElement('canvas');
+titleFx.style.cssText='position:fixed;inset:0;z-index:7;pointer-events:none;transition:opacity 1s;';
+document.body.appendChild(titleFx);
+const tfx=titleFx.getContext('2d');
+function sizeTitleFx(){ titleFx.width=W(); titleFx.height=H(); }
+sizeTitleFx(); window.addEventListener('resize',sizeTitleFx);
+const fireflies=[];
+for(let i=0;i<46;i++){
+  fireflies.push({a:Math.random()*6.28, r:120+Math.random()*220,
+    rr:0.4+Math.random()*1.1, ph:Math.random()*6.28,
+    yy:0.8+Math.random()*0.6, sp:0.2+Math.random()*0.5, sz:1+Math.random()*2.5});
+}
+const swirls=[];
+for(let i=0;i<5;i++){ swirls.push({off:i*1.2, sp:0.3+i*0.12, amp:80+i*30, rad:160+i*40}); }
+function drawTitleFx(t){
+  if(state>STATE.ACT1_SELECT){ titleFx.style.opacity='0'; return; }
+  titleFx.style.opacity='1';
+  tfx.clearRect(0,0,titleFx.width,titleFx.height);
+  const cx=titleFx.width/2, cy=titleFx.height*0.40;
+  // 缠绕交叉金线
+  swirls.forEach((s,si)=>{
+    tfx.beginPath();
+    for(let k=0;k<=120;k++){
+      const u=k/120*Math.PI*2;
+      const x=cx+Math.cos(u*2+s.off+t*s.sp)*s.rad*1.6;
+      const y=cy+Math.sin(u*3+s.off+t*s.sp)*s.amp;
+      k?tfx.lineTo(x,y):tfx.moveTo(x,y);
+    }
+    const grd=tfx.createLinearGradient(cx-300,cy,cx+300,cy);
+    grd.addColorStop(0,'rgba(212,175,55,0)');
+    grd.addColorStop(0.5,`rgba(255,233,168,${0.22+0.1*Math.sin(t+si)})`);
+    grd.addColorStop(1,'rgba(212,175,55,0)');
+    tfx.strokeStyle=grd; tfx.lineWidth=1.4; tfx.stroke();
+  });
+  // 萤火虫
+  fireflies.forEach(f=>{
+    f.a+=f.sp*0.004;
+    const x=cx+Math.cos(f.a)*f.r;
+    const y=cy+Math.sin(f.a*f.yy)*f.r*0.5;
+    const glow=0.4+0.6*Math.abs(Math.sin(t*f.rr+f.ph));
+    const g=tfx.createRadialGradient(x,y,0,x,y,f.sz*4);
+    g.addColorStop(0,`rgba(255,233,168,${glow})`);
+    g.addColorStop(1,'rgba(255,207,106,0)');
+    tfx.fillStyle=g; tfx.beginPath(); tfx.arc(x,y,f.sz*4,0,6.28); tfx.fill();
+  });
+}
+
+/* =====================================================================
+   状态机
+   ===================================================================== */
+const STATE={ BOOT:0, ACT1_INTRO:1, ACT1_SELECT:2, ACT2:3, ACT3_BURN:4,
+              ACT3_CRACK:5, ACT3_WAIT_FLIP:6, ACT4:7 };
+let state=STATE.BOOT;
+let chosenCategory=null;     // 第一幕记录
+let useGesture=false;        // 手势/鼠标
+let clock=new THREE.Clock();
+
+/* =====================================================================
+   手势识别（MediaPipe Hands）
+   ===================================================================== */
+const video=document.getElementById('cam-video');
+const camOverlay=document.getElementById('cam-overlay');
+const octx=camOverlay.getContext('2d');
+const camOff=document.getElementById('cam-off');
+const cursorRing=document.getElementById('cursor-ring');
+
+const hand={
+  present:false, x:0.5, y:0.5,          // 食指尖归一化(已镜像为屏幕坐标)
+  pinch:false, fist:false, open:false,
+  palmZ:0, scale:0,                      // 手掌法向z符号 / 手在画面占比
+};
+let mp=null, mpCam=null, gestureOK=false;
+
+const HAND_CONN=[[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],
+  [5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],
+  [13,17],[17,18],[18,19],[19,20],[0,17]];
+
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+function onHands(res){
+  octx.clearRect(0,0,320,240);
+  if(!res.multiHandLandmarks||!res.multiHandLandmarks.length){
+    hand.present=false; return;
+  }
+  const lm=res.multiHandLandmarks[0];
+  hand.present=true;
+  // 骨架
+  octx.strokeStyle='rgba(212,175,55,.9)';octx.lineWidth=2;
+  for(const [a,b] of HAND_CONN){
+    octx.beginPath();octx.moveTo(lm[a].x*320,lm[a].y*240);
+    octx.lineTo(lm[b].x*320,lm[b].y*240);octx.stroke();
+  }
+  octx.fillStyle='rgba(255,233,168,.95)';
+  for(const p of lm){octx.beginPath();octx.arc(p.x*320,p.y*240,3,0,7);octx.fill();}
+
+  // 食指尖(8) → 屏幕坐标（视频已镜像显示，x 取 1-x）
+  hand.x=1-lm[8].x; hand.y=lm[8].y;
+  // 手掌长度：手腕(0)→中指根(9)，作尺度基准（不受手指开合影响，方案A核心）
+  const palmLen=dist(lm[0],lm[9]);
+  hand.palmLen=palmLen;
+  // 捏合：按手掌长度归一化（自适应，放宽）
+  hand.pinch = dist(lm[4],lm[8]) < palmLen*0.55;
+  // 握拳：四指尖接近掌心(9)，按手掌长度自适应（与张开互斥）
+  const palm=lm[9];
+  const folded=[8,12,16,20].filter(i=>dist(lm[i],palm)<palmLen*0.7).length;
+  hand.fist=folded>=3;
+  // 张开：至少3指尖远离掌心（放宽，不要求全部），按手掌长度自适应
+  const openCnt=[8,12,16,20].filter(i=>dist(lm[i],palm)>palmLen*0.95).length;
+  hand.open=openCnt>=3;
+  // 距离度量（方案A）：手掌长度。靠近镜头→变大→推近
+  hand.scale=palmLen;
+  // 手掌法向 z 符号
+  const v1={x:lm[5].x-lm[0].x,y:lm[5].y-lm[0].y,z:(lm[5].z||0)-(lm[0].z||0)};
+  const v2={x:lm[17].x-lm[0].x,y:lm[17].y-lm[0].y,z:(lm[17].z||0)-(lm[0].z||0)};
+  hand.palmZ=v1.x*v2.y-v1.y*v2.x;
+}
+
+function initGesture(){
+  if(typeof Hands==='undefined'){ fallbackToMouse("手势库加载失败"); return; }
+  navigator.mediaDevices.getUserMedia({video:{width:320,height:240}})
+    .then(stream=>{
+      video.srcObject=stream;
+      mp=new Hands({locateFile:(f)=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`});
+      mp.setOptions({maxNumHands:1,modelComplexity:0,
+        minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+      mp.onResults(onHands);
+      mpCam=new Camera(video,{onFrame:async()=>{ if(useGesture) await mp.send({image:video}); },
+        width:320,height:240});
+      mpCam.start();
+      gestureOK=true; useGesture=true; camOff.classList.add('gone');
+      setGesture("已就绪");
+    })
+    .catch(()=>fallbackToMouse("摄像头被拒绝"));
+}
+function fallbackToMouse(reason){
+  useGesture=false; gestureOK=false;
+  camOff.classList.remove('gone');
+  camOff.innerHTML=(reason||"鼠标模式")+"<br>（鼠标模式）";
+  setGesture("鼠标模式 "+(reason||""));
+}
+
+document.getElementById('btn-mode').addEventListener('click',(e)=>{
+  e.stopPropagation(); sfx('click');
+  if(gestureOK){ useGesture=!useGesture; setGesture(useGesture?"手势模式":"鼠标模式"); }
+  else { initGesture(); }
+});
+
+/* ---------- 鼠标兜底：归一化坐标 ---------- */
+const mouse={x:0.5,y:0.5,down:false};
+window.addEventListener('mousemove',e=>{mouse.x=e.clientX/W();mouse.y=e.clientY/H();});
+window.addEventListener('mousedown',()=>mouse.down=true);
+window.addEventListener('mouseup',()=>mouse.down=false);
+// 统一的"指针"坐标：手势优先
+function pointer(){
+  if(useGesture&&hand.present) return {x:hand.x,y:hand.y,active:hand.pinch};
+  return {x:mouse.x,y:mouse.y,active:mouse.down};
+}
+
+/* =====================================================================
+   工具：屏幕归一化 → 世界坐标（z=0 平面）
+   ===================================================================== */
+const _ray=new THREE.Raycaster(), _v2=new THREE.Vector2();
+function screenToWorld(nx,ny,zPlane=0){
+  _v2.set(nx*2-1, -(ny*2-1));
+  _ray.setFromCamera(_v2,camera);
+  const t=(zPlane-_ray.ray.origin.z)/_ray.ray.direction.z;
+  return _ray.ray.origin.clone().add(_ray.ray.direction.clone().multiplyScalar(t));
+}
+
+/* =====================================================================
+   过场：闪白 + 进度环工具
+   ===================================================================== */
+const flash=document.getElementById('flash');
+function doFlash(ms=200){
+  flash.style.transition='none'; flash.style.opacity='1';
+  requestAnimationFrame(()=>{ flash.style.transition=`opacity ${ms}ms`; flash.style.opacity='0'; });
+}
+let fadeEl=null;
+function doFade(midCb, inMs=700, outMs=900){
+  if(!fadeEl){ fadeEl=document.createElement('div');
+    fadeEl.style.cssText='position:fixed;inset:0;z-index:52;background:#000;opacity:0;pointer-events:none;';
+    document.body.appendChild(fadeEl); }
+  fadeEl.style.transition=`opacity ${inMs}ms ease`;
+  fadeEl.style.opacity='1';
+  setTimeout(()=>{ if(midCb) midCb();
+    fadeEl.style.transition=`opacity ${outMs}ms ease`;
+    fadeEl.style.opacity='0';
+  }, inMs+60);
+}
+// 通用环形进度（用 cursor-ring 的边框模拟，简化为返回 0-1 由各幕画）
+let holdTimer=0;
+function progressRing(p){ // p:0-1 → 更新光标外观
+  cursorRing.style.background=`conic-gradient(rgba(255,233,168,.85) ${p*360}deg, transparent 0deg)`;
+}
+
+/* =====================================================================
+   第一幕：命辞 —— 4 块甲骨片选项（Three 平面 + AlphaMap）
+   ===================================================================== */
+const act1El=document.getElementById('act1');
+const titleEl=document.getElementById('title');
+const birthWrap=document.getElementById('birth-wrap');
+let boneCards=[];      // {mesh, opt, baseScale, picked}
+let selectGroup=new THREE.Group(); scene.add(selectGroup);
+
+function buildSelection(){
+  const gap=17;
+  OPTIONS.forEach((opt,i)=>{
+    const geo=new THREE.PlaneGeometry(12,17,1,1);  // 竖长条匹配gupian比例
+    const mat=new THREE.MeshBasicMaterial({
+      color:0xffffff,                 // 不染色，显示金线原色
+      transparent:true, alphaTest:0.02,
+      blending:THREE.NormalBlending, side:THREE.DoubleSide,
+      depthWrite:false
+    });
+    const mesh=new THREE.Mesh(geo,mat);
+    mesh.position.set((i-1.5)*gap, 0, 0);
+    mesh.userData={opt,baseY:0,phase:Math.random()*6.28,picked:false,hover:0};
+    selectGroup.add(mesh);
+    boneCards.push({mesh,opt});
+    // 直接用程序生成的金色轮廓（稳定可见，不依赖gupian文件）
+    const goldTex=new THREE.CanvasTexture(fallbackGupian(i*1.7+1));
+    goldTex.colorSpace=THREE.SRGBColorSpace;
+    mat.map=goldTex; mat.needsUpdate=true;
+    // 选项文字：清晰DOM层，叠在金轮廓中央，跟随骨片屏幕位置
+    const lab=document.createElement('div');
+    lab.className='opt-label'; lab.textContent=opt.label;
+    document.getElementById('opt-labels').appendChild(lab);
+    boneCards[boneCards.length-1].labelEl=lab;
+  });
+  selectGroup.visible=false;
+}
+buildSelection();
+
+// 选项确认逻辑（捏合悬停1秒 / 鼠标点击）
+let selPinchTimer=0, selHoverIdx=-1;
+function updateSelection(dt){
+  if(state!==STATE.ACT1_SELECT) return;
+  const p=pointer();
+  const world=screenToWorld(p.x,p.y,0);
+  // 光标
+  cursorRing.style.opacity= useGesture? '1':'0';
+  cursorRing.style.left=(p.x*W())+'px'; cursorRing.style.top=(p.y*H())+'px';
+  // hover 检测
+  let hit=-1;
+  boneCards.forEach((c,i)=>{
+    if(c.mesh.userData.picked) return;
+    const d=Math.hypot(c.mesh.position.x-world.x,c.mesh.position.y-world.y);
+    const isHit=d<6.5;
+    c.mesh.userData.hover=THREE.MathUtils.damp(c.mesh.userData.hover,isHit?1:0,6,dt);
+    if(isHit) hit=i;
+  });
+  // 确认：手势捏合悬停 或 鼠标按下点击
+  const confirming = useGesture ? (hit>=0 && hand.pinch) : (hit>=0 && mouse.down);
+  if(confirming){
+    if(selHoverIdx!==hit){ selHoverIdx=hit; selPinchTimer=0; }
+    selPinchTimer+=dt;
+    progressRing(Math.min(selPinchTimer/CONFIG.PINCH_HOLD,1));
+    if(useGesture){
+      if(selPinchTimer>=CONFIG.PINCH_HOLD) commitSelection(hit);
+    } else {
+      // 鼠标：单击即可（按下瞬间）——这里用短阈值
+      if(selPinchTimer>=0.05) commitSelection(hit);
+    }
+  } else {
+    selHoverIdx=-1; selPinchTimer=0; progressRing(0);
+  }
+}
+
+let selecting=false;
+function commitSelection(idx){
+  if(selecting) return; selecting=true;
+  sfx('click');
+  chosenCategory=boneCards[idx].opt.key;      // ★记录类别
+  setGesture("已择「"+boneCards[idx].opt.key+"」");
+  cursorRing.style.opacity='0';
+  // 未选中的化为粒子消散；选中放大占满后白屏
+  boneCards.forEach((c,i)=>{
+    c.mesh.userData.picked=true;
+    if(i!==idx){ c.mesh.userData.dissolve=true; }
+    else { c.mesh.userData.zoom=true; }
+  });
+  showHint('');
+  // 选中放大停留后，黑场过渡到第二幕（无白闪）
+  setTimeout(()=>{
+    doFade(()=>{ enterAct2(); }, 400, 400);
+  }, 800);
+}
+
+// 选项动画（漂浮、hover发光、消散、放大）
+let selectAnimT=0;
+function animateSelection(dt,t){
+  if(!selectGroup.visible) return;
+  selectGroup.children.forEach(ch=>{
+    if(ch.isSprite){
+      const card=ch.userData.parentCard;
+      if(card){ ch.material.opacity=THREE.MathUtils.damp(ch.material.opacity, card.userData.picked&&card.userData.dissolve?0:1,6,dt); }
+      return;
+    }
+    const u=ch.userData;
+    if(u.dissolve){
+      ch.scale.multiplyScalar(1-0.5*dt);
+      ch.material.opacity=THREE.MathUtils.damp(ch.material.opacity,0,2.2,dt);
+      ch.position.x+=Math.cos(u.phase)*dt*5;
+      ch.position.y+=Math.sin(u.phase)*dt*5;
+    } else if(u.zoom){
+      const s=THREE.MathUtils.damp(ch.scale.x,9,2.0,dt);
+      ch.scale.set(s,s,s);
+      if(ch.material.color) ch.material.color.setRGB(2.5,2.0,1.2);
+      ch.position.z=THREE.MathUtils.damp(ch.position.z,20,2.0,dt);
+    } else {
+      ch.position.y=u.baseY+Math.sin(t*0.8+u.phase)*0.6;
+      const g=1+u.hover*1.4;
+      if(ch.material.color) ch.material.color.setRGB(g,g*0.9,g*0.55);
+      const tgt=1+u.hover*0.18;
+      const s=THREE.MathUtils.damp(ch.scale.x,tgt,6,dt);
+      ch.scale.set(s,s,s);
+      ch.rotation.z=Math.sin(t*0.4+u.phase)*0.04;
+    }
+  });
+  // 更新选项DOM文字到骨片屏幕位置
+  boneCards.forEach(c=>{
+    if(!c.labelEl) return;
+    if(!selectGroup.visible || c.mesh.userData.dissolve || c.mesh.userData.picked){
+      c.labelEl.style.opacity='0'; return;
+    }
+    const v=c.mesh.position.clone().project(camera);
+    const sx=(v.x*0.5+0.5)*W(), sy=(-v.y*0.5+0.5)*H();
+    c.labelEl.style.left=sx+'px'; c.labelEl.style.top=sy+'px';
+    c.labelEl.style.opacity='1';
+  });
+}
+
+/* ---------- 第一幕 → 标题上移 + 展开选项 ---------- */
+document.getElementById('btn-confirm').addEventListener('click',(e)=>{
+  e.stopPropagation();
+  if(state!==STATE.ACT1_INTRO) return;
+  if(!birthReady) return;            // 须选全出生年月日
+  sfx('click');
+  // 标题缩小上移
+  titleEl.style.transform='translateY(-42vh) scale(.42)';
+  birthWrap.style.opacity='0'; birthWrap.style.pointerEvents='none';
+  setTimeout(()=>{
+    state=STATE.ACT1_SELECT;
+    selectGroup.visible=true;
+    selectGroup.children.forEach(ch=>{ if(ch.material) ch.material.opacity=0; });
+    showActLabel('命 辞');
+    showHint(useGesture?'食指移动光标 · 拇指食指捏合悬于骨片 · 圆环合拢即择（识别不到可双击骨片）'
+                       :'移动鼠标 · 按住左键悬于骨片 · 圆环合拢即择');
+    if(!gestureOK) initGesture();    // 命辞起开启摄像头
+  },1100);
+});
+
+/* =====================================================================
+   第二幕：银河星环
+   ===================================================================== */
+let act2Group=new THREE.Group(); act2Group.visible=false; scene.add(act2Group);
+let mainBone=null, glyphRing=null;
+let camDist=42, targetCamDist=42, act2Locked=false, lockTimer=0;
+
+function buildAct2(){
+  // 主甲骨片（PlaneGeometry + 顶点偏移弧面）
+  const pick=`0${1+Math.floor(Math.random()*4)}.png`; // 01-04 随机
+  const geo=new THREE.PlaneGeometry(22,28,40,48);
+  const pos=geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i),y=pos.getY(i);
+    pos.setZ(i, Math.cos(x*0.07)*1.6 + Math.sin(y*0.05)*1.2); // 微曲面
+  }
+  geo.computeVertexNormals();
+  const mat=new THREE.MeshStandardMaterial({
+    color:0xd8c4a0, emissive:0x000000, emissiveIntensity:1.0, // map靠光照显真实质感；emissive留给裂纹/灼烧
+    metalness:0.0, roughness:1.0, side:THREE.DoubleSide,
+    transparent:true, alphaTest:0.12                          // 抠黑剔背景，阈值放低保留龟甲边缘
+  });
+  mainBone=new THREE.Mesh(geo,mat); act2Group.add(mainBone);
+  loadTexCutBlack(pick,fallbackBone,(t)=>{
+    mat.map=t; mat.needsUpdate=true;  // 仅作漫反射贴图，靠光照显立体质感
+  },{strength:1.6});
+  // 自定义 uniform 注入：uBurn=灼烧高亮(0-1)，uCrack=裂纹蔓延高度(0-1)
+  mat.userData.burn={value:0};
+  mat.userData.crack={value:0};
+  mat.onBeforeCompile=(sh)=>{
+    sh.uniforms.uBurn=mat.userData.burn;
+    sh.uniforms.uCrack=mat.userData.crack;
+    sh.vertexShader='varying vec2 vCrackUv;\n'+sh.vertexShader.replace(
+      '#include <uv_vertex>', '#include <uv_vertex>\n  vCrackUv=uv;');
+    sh.fragmentShader='uniform float uBurn;\nuniform float uCrack;\nvarying vec2 vCrackUv;\n'+
+     'float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}\n'+
+     'float vnoise(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.0-2.0*f);'+
+     'return mix(mix(h21(i),h21(i+vec2(1,0)),u.x),mix(h21(i+vec2(0,1)),h21(i+vec2(1,1)),u.x),u.y);}\n'+
+     sh.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+       vec2 cuv=vCrackUv;
+       float yy=cuv.y;
+       float branch=0.0;
+       for(int k=0;k<4;k++){
+         float fk=float(k);
+         float bx=0.18+0.21*fk + (vnoise(vec2(fk*7.3, yy*6.0))-0.5)*0.18;
+         float d=abs(cuv.x-bx);
+         float w=0.013*(1.0-yy*0.4)+0.0035;
+         float seg=smoothstep(w,0.0,d);
+         float fork=smoothstep(0.008,0.0,abs(d-0.04*vnoise(vec2(bx*20.0,yy*10.0))));
+         branch=max(branch, max(seg, fork*0.7));
+       }
+       float ridge=1.0-abs(vnoise(cuv*vec2(7.0,11.0))*2.0-1.0);
+       ridge=smoothstep(0.88,1.0,ridge);
+       float cracks=max(branch, ridge*0.45);
+       float reveal=smoothstep(uCrack, uCrack-0.12, yy);
+       float front=smoothstep(uCrack, uCrack-0.05, yy)*(1.0-smoothstep(uCrack-0.05, uCrack-0.12, yy));
+       float lit=cracks*reveal;
+       gl_FragColor.rgb += vec3(2.6,1.6,0.55)*lit*1.0;
+       gl_FragColor.rgb += vec3(3.0,2.2,1.0)*front*cracks*1.4;
+       // uBurn整片高亮已移除，避免盖住裂纹`
+    );
+  };
+
+  // 星环文字
+  glyphRing=new THREE.Group(); act2Group.add(glyphRing);
+  const N=CONFIG.RING_GLYPHS;
+  const glyphMat=[];
+  for(let i=0;i<N;i++){
+    const gi=1+ (i%22);
+    const mat2=new THREE.SpriteMaterial({transparent:true,opacity:0,
+      depthWrite:false, color:0xffffff, blending:THREE.AdditiveBlending});
+    const sp=new THREE.Sprite(mat2);
+    const ringIdx=i%5;
+    const radius=22+ringIdx*8 + Math.random()*6;
+    const a=i/N*Math.PI*2 + Math.random()*0.3;
+    sp.userData={a, radius, ring:ringIdx, baseScale:3.2+Math.random()*2.6};
+    sp.scale.set(sp.userData.baseScale,sp.userData.baseScale,1);
+    glyphRing.add(sp);
+    loadTex(`wen-${gi}.png`,()=>fallbackGlyph(gi*0.7),(t)=>{ mat2.map=t; mat2.needsUpdate=true; });
+  }
+  act2Group.visible=false;
+}
+buildAct2();
+function warmupAct2(){
+  act2Group.visible=true;
+  try{ composer.render(); }catch(e){}
+  act2Group.visible=false;
+}
+
+function enterAct2(){
+  act1El.style.opacity='0'; act1El.style.pointerEvents='none';
+  setTimeout(()=>act1El.classList.add('gone'),1000);
+  lunpanMesh && (lunpanMesh.visible=false);
+  selectGroup.visible=false;
+  state=STATE.ACT2;
+  act2Group.visible=true; act2Locked=false; lockTimer=0;
+  targetCamDist=42; camDist=70;
+  selecting=false;
+  showActLabel('观 星');
+  showHint(useGesture?'握拳 · 拳头变大画面推近 / 变小则远 · 握拳静止 3 秒以定（或双击锁定）'
+                     :'上下移动鼠标推拉远近 · 按住左键静止 3 秒以定');
+  setGesture("握拳推拉以观");
+}
+
+let prevHandScale=null;
+function updateAct2(dt,t){
+  if(state!==STATE.ACT2 || act2Locked) return;
+  // 银河式星环：绕Y轴的倾斜环带，近大远小、近亮远暗
+  glyphRing.children.forEach(sp=>{
+    const u=sp.userData;
+    u.a += dt*0.25;
+    const x=Math.cos(u.a)*u.radius;
+    const z=Math.sin(u.a)*u.radius;
+    const y=z*0.18 + Math.sin(u.a*2.0)*1.5;
+    sp.position.set(x, y, z);
+    const depthK=(z+u.radius)/(2*u.radius);
+    const sc=u.baseScale*(0.5+depthK*0.9);
+    sp.scale.set(sc,sc,1);
+    sp.material.opacity=THREE.MathUtils.damp(sp.material.opacity,0.35+depthK*0.6,3,dt);
+  });
+  glyphRing.rotation.y += dt*0.08;
+  glyphRing.rotation.x = 0.32;   // 微微俯视环面
+  mainBone.rotation.set(0,0,0);   // 正放固定，只推拉不转
+
+  if(useGesture){
+    if(hand.present && hand.fist){
+      // 拳头大小 → 远近。scale大=拳头近=画面推近(camDist小)；scale小=拉远(camDist大)
+      const norm=THREE.MathUtils.clamp((hand.scale-0.06)/0.16,0,1); // palmLen: 0.06远→0.22近
+      targetCamDist=THREE.MathUtils.lerp(72,20,norm); // 20最近安全距离
+      // 判断是否"静止"：拳头大小变化很小才累加锁定计时
+      const moving = (prevHandScale!==null) && Math.abs(hand.scale-prevHandScale)>0.0025;
+      prevHandScale=hand.scale;
+      if(moving){
+        lockTimer=0; progressRing(0);
+        setGesture("推拉观星…");
+      } else {
+        lockTimer+=dt;
+        progressRing(Math.min(lockTimer/CONFIG.LOCK_HOLD,1));
+        setGesture("静止定影 "+Math.ceil(CONFIG.LOCK_HOLD-lockTimer)+"s");
+        if(lockTimer>=CONFIG.LOCK_HOLD){ lockAct2(); }
+      }
+      cursorRing.style.opacity='1';
+      cursorRing.style.left=(hand.x*W())+'px';cursorRing.style.top=(hand.y*H())+'px';
+    } else {
+      // 非握拳：不推拉、不计时
+      prevHandScale=null; lockTimer=0; progressRing(0); cursorRing.style.opacity='0';
+      setGesture(hand.present?"握拳以推拉":"未见手");
+    }
+  } else {
+    // 鼠标兜底：上下移动推拉，按住左键且不大幅移动则计时
+    targetCamDist=THREE.MathUtils.lerp(72,20, 1-mouse.y);
+    if(mouse.down){
+      lockTimer+=dt; progressRing(Math.min(lockTimer/CONFIG.LOCK_HOLD,1));
+      setGesture("锁定中 "+Math.ceil(CONFIG.LOCK_HOLD-lockTimer)+"s");
+      if(lockTimer>=CONFIG.LOCK_HOLD) lockAct2();
+    } else { lockTimer=0; progressRing(0); }
+  }
+  camDist=THREE.MathUtils.damp(camDist,targetCamDist,CONFIG.DAMP,dt);
+}
+function lockAct2(){
+  if(act2Locked) return; act2Locked=true;
+  targetCamDist=18; lockTimer=0; progressRing(0);
+  cursorRing.style.opacity='0';
+  prevHandScale=null;
+  setGesture("已定");
+  // 需先回到"非张开"状态，再张开才点火，避免锁定瞬间误触发
+  burnArmed=false;
+  waitOpenToBurn=true;
+  showHint('五指张开 · 投火淬骨（或双击点火）');
+}
+let waitOpenToBurn=false, burnArmed=false;
+
+/* =====================================================================
+   第三幕：火淬卜卦
+   ===================================================================== */
+let fireMesh=null, burnT=0, crackT=0, burning=false;
+function buildFire(){
+  const geo=new THREE.PlaneGeometry(34,42);
+  const mat=new THREE.ShaderMaterial({
+    transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+    uniforms:{uTime:{value:0},uIntensity:{value:0},uGrow:{value:0}},
+    vertexShader:`varying vec2 vUv; void main(){vUv=uv;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`varying vec2 vUv; uniform float uTime; uniform float uIntensity; uniform float uGrow;
+      float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5);}
+      float noise(vec2 p){vec2 i=floor(p),f=fract(p);
+        float a=hash(i),b=hash(i+vec2(1,0)),c=hash(i+vec2(0,1)),d=hash(i+vec2(1,1));
+        vec2 u=f*f*(3.0-2.0*f);
+        return mix(mix(a,b,u.x),mix(c,d,u.x),u.y);}
+      float fbm(vec2 p){float v=0.0,a=0.55;
+        for(int i=0;i<6;i++){v+=a*noise(p);p=p*2.07+vec2(1.3,-2.1);a*=0.5;}return v;}
+      void main(){
+        vec2 uv=vUv;
+        float t=uTime;
+        // 多层上升湍流 → 自然舔舌火焰
+        vec2 q=vec2(uv.x*3.2, uv.y*2.2);
+        float flow=fbm(q+vec2(0.0,-t*1.5));
+        float flow2=fbm(q*1.9+vec2(t*0.25,-t*2.4));
+        float turb=flow*0.65+flow2*0.35;
+        float body=(1.0-uv.y);
+        float shape=body*1.5 + (turb-0.5)*1.5 - 0.42;
+        float edgeN=fbm(vec2(uv.y*5.0 - t*1.8, uv.x*2.0));
+        float lx=0.30 + edgeN*0.16;
+        float rx=0.70 - edgeN*0.16;
+        float sideMask=smoothstep(lx-0.12,lx+0.05,uv.x)*smoothstep(rx+0.12,rx-0.05,uv.x);
+        sideMask*= 0.5+0.5*fbm(vec2(uv.x*6.0, uv.y*4.0 - t*2.0));
+        float flame=smoothstep(0.0,0.5,shape)*sideMask;
+        // 逐渐蔓延：火焰上沿随 uGrow 自下而上推进，前沿不规则
+        float growLine=uGrow*1.25 + (turb-0.5)*0.18;   // 不规则前沿
+        float grow=smoothstep(growLine+0.05, growLine-0.20, uv.y);
+        flame*=grow;
+        flame=pow(clamp(flame,0.0,1.0),1.15);
+        vec3 col=vec3(0.55,0.06,0.01);
+        col=mix(col,vec3(0.95,0.35,0.05),smoothstep(0.0,0.45,flame));
+        col=mix(col,vec3(1.0,0.78,0.25),smoothstep(0.35,0.75,flame));
+        col=mix(col,vec3(1.0,0.96,0.7),smoothstep(0.7,1.0,flame));
+        float spark=step(0.985,hash(floor(uv*vec2(55.0,75.0)+vec2(0.0,-t*9.0))));
+        col+=spark*vec3(1.0,0.8,0.4)*flame;
+        gl_FragColor=vec4(col*flame*1.8, clamp(flame,0.0,1.0)*uIntensity);
+      }`
+  });
+  fireMesh=new THREE.Mesh(geo,mat);
+  fireMesh.position.set(0,-4,3); fireMesh.visible=false;
+  act2Group.add(fireMesh);
+}
+buildFire();
+
+function enterAct3(){
+  state=STATE.ACT3_BURN; burning=true; burnT=0; crackT=0;
+  waitOpenToBurn=false; burnArmed=false;
+  fireMesh.visible=true;
+  sfx('fire',0.75);
+  showActLabel('火 淬');
+  showHint('烈火淬骨 · 静观灼裂');
+  setGesture("烈火灼骨");
+  mainBone.material.userData.crack.value=0;
+  fireMesh.material.uniforms.uGrow.value=0;
+  fireMesh.material.uniforms.uIntensity.value=0;
+  // 星环消散
+  glyphRing.children.forEach(sp=>sp.userData.fade=true);
+}
+function updateAct3(dt,t){
+  if(state===STATE.ACT3_BURN){
+    burnT+=dt;
+    const prog=THREE.MathUtils.clamp(burnT/CONFIG.BURN_SECONDS,0,1);
+    fireMesh.material.uniforms.uTime.value=t;
+    fireMesh.material.uniforms.uIntensity.value=THREE.MathUtils.damp(
+      fireMesh.material.uniforms.uIntensity.value, 1, 4, dt);
+    // 大火自下而上逐渐蔓延铺满（不规则前沿由shader处理）
+    fireMesh.material.uniforms.uGrow.value=prog;
+    fireMesh.position.set(0,-4,3);
+    mainBone.material.userData.burn.value=Math.max(
+      mainBone.material.userData.burn.value, prog);
+    glyphRing.children.forEach(sp=>{ if(sp.userData.fade)
+      sp.material.opacity=THREE.MathUtils.damp(sp.material.opacity,0,3,dt); });
+    if(burnT>=CONFIG.BURN_SECONDS){
+      state=STATE.ACT3_CRACK; crackT=0;
+      showHint('裂纹蔓延 · 金光自骨中迸发');
+      setGesture("龟甲灼裂…");
+    }
+  }
+  else if(state===STATE.ACT3_CRACK){
+    crackT+=dt;
+    fireMesh.material.uniforms.uTime.value=t;
+    // 火焰逐渐散开熄灭
+    fireMesh.material.uniforms.uIntensity.value=THREE.MathUtils.damp(
+      fireMesh.material.uniforms.uIntensity.value, 0, 1.2, dt);
+    // 裂纹自下而上蔓延（0→1）
+    mainBone.material.userData.crack.value=THREE.MathUtils.clamp(crackT/CONFIG.CRACK_SECONDS,0,1);
+    if(crackT>=CONFIG.CRACK_SECONDS){
+      fireMesh.visible=false;
+      state=STATE.ACT3_WAIT_FLIP;
+      AUDIO.fire.pause();
+      showHint('握拳收势 · 而后张掌翻转以问（或双击）');
+      setGesture("握拳收势");
+      fistArmedForFlip=false;
+    }
+  }
+  else if(state===STATE.ACT3_WAIT_FLIP){
+    // 等待"握拳"收势 → 再"张掌翻转"问辞
+    detectFlip(dt);
+  }
+}
+function fadeBgm(from,to,sec){
+  const start=performance.now();
+  (function step(){
+    const k=Math.min((performance.now()-start)/(sec*1000),1);
+    AUDIO.bgm.volume=from+(to-from)*k;
+    if(k<1) requestAnimationFrame(step);
+  })();
+}
+
+/* =====================================================================
+   第四幕：占辞 —— 翻转触发 → 溶解旋涡 → 文字粒子聚合
+   ===================================================================== */
+let flipPrevSign=0, flipArmed=false, fistArmedForFlip=false;
+function detectFlip(dt){
+  if(state!==STATE.ACT3_WAIT_FLIP) return;
+  if(useGesture){
+    // 第一步：检测到握拳收势
+    if(!fistArmedForFlip){
+      if(hand.present && hand.fist){ fistArmedForFlip=true; flipPrevSign=0; flipArmed=false;
+        setGesture("已收势 · 张掌翻转以问"); showHint('张开手掌并翻转 · 掌心翻向手背'); }
+      return;
+    }
+    // 第二步：张开手掌并翻转（掌心法向z符号变号）
+    if(hand.present && hand.open){
+      const sign=Math.sign(hand.palmZ);
+      if(flipPrevSign===0){ flipPrevSign=sign; flipArmed=true; }
+      else if(flipArmed && sign!==0 && sign!==flipPrevSign){
+        enterAct4();
+      }
+    }
+  } else {
+    // 鼠标兜底：先松开（收势）再点击（翻转）
+    if(!fistArmedForFlip){ if(!mouse.down) fistArmedForFlip=true; return; }
+    if(mouse.down) enterAct4();
+  }
+}
+
+let dissolveParticles=null, resultParticles=null, act4T=0, act4Phase=0;
+let butterflies=[];   // 每只：{cx,cy,cz, vx,vy,vz, flap, scale, idxStart, count}
+function enterAct4(){
+  if(state===STATE.ACT4) return;
+  state=STATE.ACT4; act4T=0; act4Phase=0;
+  showActLabel('占 辞');
+  showHint('');
+  setGesture("骨化蝶 · 占辞将显");
+  cursorRing.style.opacity='0';
+  buildButterflies();
+  mainBone.visible=false;
+  fireMesh.visible=false;
+}
+
+// 骨片溶解 → 金色粒子组成多只蝴蝶 → 扇翅聚拢 → 四散飞出
+function buildButterflies(){
+  const NUM=22;                       // 蝴蝶数量（增多更壮观）
+  const PER=300;                      // 每只粒子数
+  const n=NUM*PER;
+  const geo=new THREE.BufferGeometry();
+  const pos=new Float32Array(n*3);    // 当前位置
+  const wing=new Float32Array(n*2);   // 翅膀本地坐标(x,y)
+  const meta=new Float32Array(n);     // 所属蝴蝶index
+  butterflies=[];
+  for(let b=0;b<NUM;b++){
+    const ang=Math.random()*Math.PI*2;
+    butterflies.push({
+      // 出发：骨片范围内随机散布
+      cx:(Math.random()-0.5)*16, cy:(Math.random()-0.5)*20, cz:(Math.random()-0.5)*4,
+      rot:ang,                                  // 飞行朝向
+      speed:9+Math.random()*9,                  // 初速（随后加速）
+      curl:(Math.random()-0.5)*1.8,             // 旋舞偏转（正负→左右回旋）
+      rise:1.5+Math.random()*2.5,               // 上飘
+      vz:(Math.random()-0.5)*7,
+      flap:Math.random()*6.28, flapSpd:7+Math.random()*5,
+      scale:1.6+Math.random()*1.3
+    });
+    for(let i=0;i<PER;i++){
+      const gi=b*PER+i;
+      // 优雅蝴蝶轮廓：上翅前展、下翅修长后曳
+      const side=(i%2===0)?1:-1;          // 左右翅
+      const isUpper=(i%4<2);              // 上翅/下翅
+      const tt=Math.random();             // 0..1 沿翅缘参数
+      let wx,wy;
+      if(isUpper){
+        // 上翅：较大的水滴/扇形，前缘上扬
+        const ang=tt*2.3;                 // 张角
+        const rad=0.85*Math.pow(Math.sin(tt*Math.PI),0.6);
+        wx=side*(0.18 + Math.sin(ang)*rad*1.05);
+        wy=0.05 + Math.cos(ang)*rad*0.95 + tt*0.25;
+      } else {
+        // 下翅：修长尾翼，向下后方拉长收尖
+        const rad=0.7*Math.pow(Math.sin(tt*Math.PI),0.45);
+        wx=side*(0.14 + Math.sin(tt*2.0)*rad*0.8);
+        wy=-0.1 - tt*0.95 - Math.sin(tt*Math.PI)*0.18;  // 向下拉长
+      }
+      // 填充感：少量向内偏移让翅面不空心
+      const fill=0.55+0.45*Math.random();
+      wx*=fill; wy=wy*fill + (isUpper?0.15:-0.15);
+      // 起始位置=骨片内散布
+      pos[gi*3]=(Math.random()-0.5)*20;
+      pos[gi*3+1]=(Math.random()-0.5)*26;
+      pos[gi*3+2]=(Math.random()-0.5)*4;
+      wing[gi*2]=wx; wing[gi*2+1]=wy;
+      meta[gi]=b;
+    }
+  }
+  geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('aWing',new THREE.BufferAttribute(wing,2));
+  geo.setAttribute('aB',new THREE.BufferAttribute(meta,1));
+  const mat=new THREE.PointsMaterial({color:0xffcf6a,size:0.34,transparent:true,
+    opacity:1,blending:THREE.AdditiveBlending,depthWrite:false});
+  dissolveParticles=new THREE.Points(geo,mat);
+  dissolveParticles.userData={PER,NUM};
+  act2Group.add(dissolveParticles);
+}
+
+// 占辞文字 → 清晰DOM显示（仅微动），不再用粒子，保证可读
+const elOracle=document.getElementById('oracle-text');
+function buildResultParticles(text){
+  elOracle.textContent=text;
+  // 自适应字号：长句缩小，保证单行不溢出
+  const len=text.length;
+  const vw=Math.min(window.innerWidth*0.68, 1000);
+  const fs=Math.max(24, Math.min(52, Math.floor(vw/(len*1.15))));
+  elOracle.style.fontSize=fs+'px';
+  // 触发淡入+呼吸
+  requestAnimationFrame(()=>elOracle.classList.add('show'));
+  showFortune();
+}
+function hideOracleText(){
+  elOracle.classList.remove('show'); elOracle.style.opacity='0';
+  const fp=document.getElementById('fortune-panel');
+  if(fp){ fp.classList.remove('show'); fp.style.opacity='0'; }
+}
+
+/* ---------- 今日运势模块（每次随机，指数72-99） ---------- */
+const LUCKY_COLORS=[["朱砂红","#c8302a"],["鎏金","#d4af37"],["黛青","#2e4a5a"],
+  ["月白","#e8e4d8"],["黛紫","#5a3a6a"],["松石绿","#3a8a6a"],["赭石","#9a5a2a"],
+  ["天青","#6aa0c8"],["藕荷","#c8a0c0"]];
+const FORTUNE_NOTES=[
+  "静享平静岁月，生活中的方方面面宁静而平和，偶尔的社会竞争会让你感到压力，但同样有利于成长与激起斗志。",
+  "近期诸事顺遂，宜把握良机、果断而行；切忌优柔寡断，错失眼前的好风景。",
+  "贵人将至，多与良友相往来，言谈之间或有意外之助；独行虽快，众行方远。",
+  "心绪稍显浮动，宜静坐养神、少思多眠；待云开雾散，自有豁然开朗之时。",
+  "财帛之事不必强求，细水长流方为长久之道；一时得失，皆是过眼云烟。",
+  "情之一字，重在真诚相待；坦然以对，则金石可开，所思之人终会回应。",
+  "学业与事业皆需厚积薄发，今日所下苦功，他日必见其华；勿急于一时之成。",
+  "宜出行、会友、开拓新境；闭门空想不如起身去行，山水之间自有答案。",
+  "守拙藏锋，低调行事为上；锋芒太露易招是非，韬光养晦方能行稳致远。",
+  "家宅安宁，亲情可贵；忙碌之余多陪伴身边人，温暖即在举手投足之间。"
+];
+function showFortune(){
+  const fp=document.getElementById('fortune-panel');
+  if(!fp) return;
+  const rnd=()=>72+Math.floor(Math.random()*28);  // 72-99
+  const love=rnd(),wealth=rnd(),career=rnd(),study=rnd();
+  const score=Math.round((love+wealth+career+study)/4);
+  const color=LUCKY_COLORS[Math.floor(Math.random()*LUCKY_COLORS.length)];
+  const num=1+Math.floor(Math.random()*9);
+  const note=FORTUNE_NOTES[Math.floor(Math.random()*FORTUNE_NOTES.length)];
+  const bar=(v)=>`<span class="bar"><i style="width:${v}%"></i></span> ${v}`;
+  fp.innerHTML=`
+    <div class="row">
+      <span class="item">幸运色 <span class="color-dot" style="background:${color[1]}"></span> ${color[0]}</span>
+      <span class="item">幸运数字 <b>${num}</b></span>
+      <span class="item">综合 <span class="score">${score}</span></span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span class="item">爱情 ${bar(love)}</span>
+      <span class="item">财富 ${bar(wealth)}</span>
+      <span class="item">事业 ${bar(career)}</span>
+      <span class="item">学业 ${bar(study)}</span>
+    </div>
+    <div class="note">今日注意事项 · ${note}</div>`;
+  requestAnimationFrame(()=>fp.classList.add('show'));
+}
+
+let resultText='';
+function updateAct4(dt,t){
+  if(state!==STATE.ACT4) return;
+  act4T+=dt;
+  // 阶段0：骨化金粒 → 聚成蝴蝶群扇翅 → 四散飞出（共 BUTTERFLY_SEC 秒）
+  if(act4Phase===0){
+    if(dissolveParticles){
+      const p=dissolveParticles.geometry.attributes.position;
+      const wing=dissolveParticles.geometry.attributes.aWing;
+      const ab=dissolveParticles.geometry.attributes.aB;
+      const PER=dissolveParticles.userData.PER;
+      const gatherDur=0.5;                      // 极短成形，几乎立刻散开
+      const flyT=Math.max(0, act4T-gatherDur);  // 飞散时间
+      // 每只蝴蝶：成形后立刻四散飞出，带旋舞轨迹
+      butterflies.forEach(bf=>{
+        bf.flap+=dt*bf.flapSpd;
+        if(act4T>gatherDur){
+          // 旋舞：飞行方向缓慢偏转，路径呈弧线更优美
+          bf.rot+=dt*bf.curl;
+          bf.cx+=Math.cos(bf.rot)*bf.speed*dt;
+          bf.cy+=(Math.sin(bf.rot)*bf.speed*0.7 + bf.rise)*dt;
+          bf.cz+=bf.vz*dt;
+          bf.speed*=(1+0.25*dt);   // 越飞越快，向四周炸开
+        }
+      });
+      const formK=1-Math.exp(-7*dt);
+      for(let i=0;i<p.count;i++){
+        const bf=butterflies[ab.getX(i)];
+        const flap=Math.sin(bf.flap)*0.5+0.5;   // 扇动
+        const wx=wing.getX(i), wy=wing.getY(i);
+        const lx=wx*(0.45+flap*0.9)*bf.scale;   // 扇翅幅度更大
+        const ly=wy*bf.scale;
+        const cs=Math.cos(bf.rot+1.57), sn=Math.sin(bf.rot+1.57); // 朝飞行方向
+        const tx=bf.cx + lx*cs - ly*sn;
+        const ty=bf.cy + lx*sn + ly*cs;
+        const tz=bf.cz + Math.sin(bf.flap+wx*3.0)*0.5;
+        p.setX(i, p.getX(i)+(tx-p.getX(i))*formK);
+        p.setY(i, p.getY(i)+(ty-p.getY(i))*formK);
+        p.setZ(i, p.getZ(i)+(tz-p.getZ(i))*formK);
+      }
+      p.needsUpdate=true;
+      // 后段淡出
+      if(flyT>3.0) dissolveParticles.material.opacity=
+        THREE.MathUtils.damp(dissolveParticles.material.opacity,0,1.8,dt);
+    }
+    if(act4T>=CONFIG.BUTTERFLY_SEC){
+      act4Phase=1; act4T=0;
+      const pool=ORACLES[chosenCategory]||ORACLES["事业"];
+      resultText=pool[Math.floor(Math.random()*pool.length)];
+      buildResultParticles(resultText);
+      sfx('daan',0.85);   // 占辞文字出现的此刻响风铃
+      if(dissolveParticles){act2Group.remove(dissolveParticles);
+        dissolveParticles.geometry.dispose();dissolveParticles=null;}
+      butterflies=[];
+      showHint('占辞既成 · 静心默念');
+    }
+  }
+  // 阶段1：四周星空粒子向中央聚成占辞文字，展示30s，末10s倒计时
+  else if(act4Phase===1){
+    // 占辞为清晰DOM文字（CSS呼吸微动），此处只管倒计时
+    const remain=CONFIG.RESULT_SHOW-act4T;
+    if(remain<=CONFIG.COUNTDOWN_FROM){ showCountdown(Math.max(0,Math.ceil(remain))); }
+    if(act4T>=CONFIG.RESULT_SHOW){ act4Phase=2; act4T=0; hideCountdown(); finishAct4(); }
+  }
+}
+let resetting=false;
+function finishAct4(){
+  if(resetting) return; resetting=true;
+  // 全屏淡出
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;z-index:55;background:#000;opacity:0;transition:opacity 1.6s;';
+  document.body.appendChild(ov);
+  requestAnimationFrame(()=>ov.style.opacity='1');
+  setTimeout(()=>{ resetAll(); ov.style.opacity='0';
+    setTimeout(()=>ov.remove(),1600); }, 1800);
+}
+
+/* =====================================================================
+   重置回第一幕
+   ===================================================================== */
+function resetAll(){
+  // 清理第四幕粒子
+  hideOracleText();
+  if(dissolveParticles){act2Group.remove(dissolveParticles);dissolveParticles=null;}
+  butterflies=[];
+  // 重置骨片
+  mainBone.visible=true; mainBone.material.userData.burn.value=0;
+  mainBone.material.userData.crack.value=0;
+  fireMesh.visible=false; fireMesh.material.uniforms.uIntensity.value=0;
+  fireMesh.material.uniforms.uGrow.value=0;
+  act2Group.visible=false;
+  // 重置选项
+  boneCards.forEach(c=>{
+    c.mesh.userData.picked=false; c.mesh.userData.dissolve=false; c.mesh.userData.zoom=false;
+    c.mesh.userData.hover=0; c.mesh.scale.set(1,1,1);
+    c.mesh.material.opacity=1; if(c.mesh.material.color) c.mesh.material.color.setRGB(1,0.9,0.55);
+    c.mesh.position.z=0;
+  });
+  selectGroup.visible=false;
+  // 重置星环
+  glyphRing.children.forEach(sp=>{sp.userData.fade=false;sp.material.opacity=0;});
+  // 标题归位
+  act1El.classList.remove('gone'); act1El.style.opacity='1'; act1El.style.pointerEvents='none';
+  titleEl.style.transform='translateY(0) scale(1)';
+  birthWrap.style.opacity='1'; birthWrap.style.pointerEvents='auto';
+  // 重置生肖
+  chosenZodiac=null; birthReady=false;
+  ['sel-year','sel-month','sel-day'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const zs=document.getElementById('zodiac-show'); if(zs) zs.textContent='　';
+  document.getElementById('btn-confirm').classList.remove('ready');
+  lunpanMesh&&(lunpanMesh.visible=true);
+  // 幕名/提示/倒计时
+  showActLabel('序 辞'); showHint('点选属相 · 而后刻辞卜甲'); hideCountdown();
+  // 状态
+  chosenCategory=null; selecting=false; resetting=false; act2Locked=false;
+  waitOpenToBurn=false; burnArmed=false; burning=false; burnT=0; crackT=0; act4Phase=0;
+  fistArmedForFlip=false; flipPrevSign=0; flipArmed=false; prevHandScale=null;
+  camDist=42; targetCamDist=42;
+  fadeBgm(AUDIO.bgm.volume,0.5,2.0);
+  state=STATE.ACT1_INTRO;
+  setGesture("待命");
+}
+
+/* =====================================================================
+   拍立得截图
+   ===================================================================== */
+document.getElementById('btn-shot').addEventListener('click',async (e)=>{
+  e.stopPropagation(); sfx('kacha',0.9);
+  const poEl=document.getElementById('polaroid');
+  const pc=poEl.querySelector('canvas'), px=pc.getContext('2d');
+  const W0=window.innerWidth, H0=window.innerHeight;
+  pc.width=680; pc.height=Math.round(680*H0/W0);
+  px.fillStyle='#0a0a0c'; px.fillRect(0,0,pc.width,pc.height);
+  try{ composer.render(); px.drawImage(renderer.domElement,0,0,pc.width,pc.height); }catch(_){}
+  try{
+    if(typeof html2canvas!=='undefined'){
+      const domCv=await html2canvas(document.body,{backgroundColor:null,
+        ignoreElements:(el)=>el.id==='polaroid'||el.id==='canvas-root'||el.id==='cam-wrap',
+        scale:1, logging:false, useCORS:true});
+      px.drawImage(domCv,0,0,pc.width,pc.height);
+    }
+  }catch(err){ console.warn('html2canvas失败',err); }
+  if(video.readyState>=2){
+    const cw=pc.width*0.25, ch=cw*0.75, mx=pc.width-cw-8, my=8;
+    px.save(); px.translate(mx+cw,my); px.scale(-1,1);
+    px.drawImage(video,0,0,cw,ch); px.restore();
+    px.strokeStyle='rgba(212,175,55,.6)'; px.strokeRect(mx,my,cw,ch);
+  }
+  poEl.style.transition='none'; poEl.style.opacity='0';
+  poEl.style.transform='translate(-50%,-50%) scale(.7)';
+  requestAnimationFrame(()=>{
+    poEl.style.transition='opacity .5s,transform .5s';
+    poEl.style.opacity='1'; poEl.style.transform='translate(-50%,-50%) scale(1)';
+  });
+  setTimeout(()=>{ poEl.style.opacity='0'; poEl.style.transform='translate(-50%,-50%) scale(.8)'; }, 3000);
+});
+
+/* =====================================================================
+   启动
+   ===================================================================== */
+const boot=document.getElementById('boot');
+function startExperience(){
+  unlockAudio();
+  boot.style.opacity='0';
+  setTimeout(()=>boot.classList.add('gone'),1000);
+  state=STATE.ACT1_INTRO;
+  showActLabel('序 辞');
+  showHint('点选生辰 · 而后刻辞卜甲');
+  setGesture("待命 · 点选生辰");
+  setTimeout(()=>{ try{ warmupAct2(); }catch(e){} }, 600);
+  setTimeout(()=>{ try{ if(!gestureOK) initGesture(); }catch(e){} }, 300);
+}
+boot.addEventListener('click',startExperience,{once:true});
+
+/* ---------- 全程鼠标双击兜底：任何一幕卡住都能用双击推进 ---------- */
+window.addEventListener('dblclick',(e)=>{
+  if(e.target.closest('#btn-mode,#btn-mute,#btn-shot,#btn-confirm,#birth-selects,#boot')) return;
+  if(state===STATE.ACT1_SELECT){
+    // 双击落在某骨片附近则选它，否则选光标最近的
+    const world=screenToWorld(mouse.x,mouse.y,0);
+    let best=-1,bd=1e9;
+    boneCards.forEach((c,i)=>{ if(c.mesh.userData.picked)return;
+      const d=Math.hypot(c.mesh.position.x-world.x,c.mesh.position.y-world.y);
+      if(d<bd){bd=d;best=i;} });
+    if(best>=0) commitSelection(best);
+  } else if(state===STATE.ACT2 && !act2Locked){
+    lockAct2();
+  } else if(state===STATE.ACT2 && act2Locked && waitOpenToBurn){
+    enterAct3();
+  } else if(state===STATE.ACT3_WAIT_FLIP){
+    enterAct4();
+  }
+});
+
+/* =====================================================================
+   主渲染循环
+   ===================================================================== */
+function loop(){
+  requestAnimationFrame(loop);
+  const dt=Math.min(clock.getDelta(),0.05);
+  const t=clock.elapsedTime;
+
+  bgParticles.material.uniforms.uTime.value=t;
+  updateLunpan(dt);   // 圆环法阵（序辞/命辞显示，顺时针）
+  drawTitleFx(t);   // 标题萤火虫+缠绕金线
+
+  // 相机
+  camera.position.z=THREE.MathUtils.damp(camera.position.z,camDist,CONFIG.DAMP,dt);
+  camera.lookAt(camTarget);
+
+  // 各幕
+  animateSelection(dt,t);
+  updateSelection(dt);
+  updateAct2(dt,t);
+  // 五指张开触发燃烧（需先经历非张开状态，避免锁定瞬间误触发）
+  if(state===STATE.ACT2 && act2Locked && waitOpenToBurn){
+    if(useGesture){
+      if(hand.present && !hand.open) burnArmed=true;          // 先收拢
+      if(burnArmed && hand.present && hand.open) enterAct3();  // 再张开
+    } else {
+      if(!mouse.down) burnArmed=true;
+      if(burnArmed && mouse.down) enterAct3();
+    }
+  }
+  updateAct3(dt,t);
+  updateAct4(dt,t);
+
+  // 手势状态文字（仅第二幕未锁定时用原始手势名；其余幕由各自逻辑设置）
+  if(useGesture && hand.present && state===STATE.ACT2 && !act2Locked){
+    let g=hand.fist?'握拳推拉':hand.pinch?'捏合':hand.open?'张开':'游移';
+    elGesture.textContent='手势：'+g;
+  }
+
+  composer.render();
+}
+loop();
+
+</script>
+</body>
+</html>
