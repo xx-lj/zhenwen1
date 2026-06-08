@@ -85,6 +85,40 @@
     z-index:11;font-size:34px;color:var(--gold-bright);letter-spacing:.4em;
     text-shadow:0 0 22px rgba(212,175,55,.7),0 0 4px #000;opacity:0;
     transition:opacity 1s;pointer-events:none;text-indent:.4em;}
+  #act-culture{position:fixed;top:66px;left:50%;transform:translateX(-50%);
+    z-index:11;text-align:center;opacity:0;transition:opacity 1s;pointer-events:none;
+    max-width:80vw;text-shadow:0 0 12px rgba(0,0,0,.9);}
+  #act-culture .poem{font-size:27px;color:var(--gold-bright);letter-spacing:.2em;}
+  #act-culture .plain{margin-top:5px;font-size:20px;color:var(--paper);opacity:.8;
+    letter-spacing:1px;line-height:1.5;}
+  /* 文化介绍入口与面板 */
+  #btn-learn{margin-top:14px;cursor:pointer;font-size:16px;color:var(--gold-bright);
+    letter-spacing:2px;opacity:.75;text-decoration:underline;text-underline-offset:5px;
+    transition:opacity .25s;}
+  #btn-learn:hover{opacity:1;text-shadow:0 0 12px rgba(212,175,55,.7);}
+  #learn-panel{position:fixed;inset:0;z-index:45;background:rgba(6,5,3,.82);
+    backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;
+    opacity:0;pointer-events:none;transition:opacity .5s;}
+  #learn-panel.show{opacity:1;pointer-events:auto;}
+  #learn-panel .lp-inner{max-width:640px;width:86vw;max-height:84vh;overflow-y:auto;
+    border:1px solid rgba(212,175,55,.5);border-radius:12px;padding:34px 40px;
+    background:linear-gradient(160deg,rgba(20,15,8,.95),rgba(10,8,5,.95));
+    box-shadow:0 0 50px rgba(212,175,55,.25);}
+  #learn-panel .lp-title{font-size:30px;color:var(--gold-bright);letter-spacing:.18em;
+    text-align:center;margin-bottom:24px;text-shadow:0 0 18px rgba(212,175,55,.6);}
+  #learn-panel .lp-body p{font-size:18px;line-height:2.0;color:var(--paper);
+    letter-spacing:1px;margin-bottom:16px;text-align:justify;}
+  #lp-close{margin-top:18px;text-align:center;cursor:pointer;font-size:20px;
+    color:var(--gold-bright);letter-spacing:6px;padding:10px;border:1px solid var(--gold);
+    border-radius:6px;transition:all .25s;}
+  #lp-close:hover{background:rgba(212,175,55,.2);box-shadow:0 0 16px rgba(212,175,55,.5);}
+  #btn-learn2{position:fixed;left:50%;bottom:88px;transform:translateX(-50%);z-index:11;
+    cursor:pointer;font-size:18px;color:var(--gold-bright);letter-spacing:3px;
+    padding:9px 22px;border:1px solid var(--gold);border-radius:6px;
+    background:rgba(20,16,10,.5);backdrop-filter:blur(4px);opacity:0;
+    pointer-events:none;transition:opacity .6s,box-shadow .25s,background .25s;}
+  #btn-learn2.show{opacity:1;pointer-events:auto;}
+  #btn-learn2:hover{background:rgba(212,175,55,.22);box-shadow:0 0 16px rgba(212,175,55,.6);}
 
   /* ---------- 底部操作提示（每幕） ---------- */
   #act-hint{position:fixed;bottom:42px;left:50%;transform:translateX(-50%);
@@ -204,7 +238,7 @@
   /* 选项文字（叠在金轮廓中央，清晰） */
   #opt-labels{position:fixed;inset:0;z-index:8;pointer-events:none;}
   .opt-label{position:absolute;transform:translate(-50%,-50%);
-    font-family:"maobi","STKaiti","KaiTi",serif;font-size:34px;letter-spacing:.1em;
+    font-family:"maobi","STKaiti","KaiTi",serif;font-size:50px;letter-spacing:.1em;
     color:#ffe9a8;text-shadow:0 0 16px rgba(212,175,55,.9),0 0 4px #000;
     opacity:0;transition:opacity .6s;white-space:nowrap;}
     #oracle-text.show{opacity:1;transform:translate(-50%,-50%) scale(1);
@@ -232,11 +266,27 @@
 
 <!-- 幕名（顶部居中） / 底部操作提示 -->
 <div id="act-label"></div>
+<div id="act-culture"></div>
+
+<!-- 文化介绍面板（可选） -->
+<div id="learn-panel">
+  <div class="lp-inner">
+    <div class="lp-title">甲骨卜辞 · 三千年前的叩问</div>
+    <div class="lp-body">
+      <p>商代（约公元前1600—前1046年），王室凡遇征战、祭祀、天象、田猎、疾病、生育等大事，皆要占卜，向神明与祖先问吉凶。</p>
+      <p>占卜时，先将所问之事「贞问」于龟甲或兽骨，在其背面钻凿出微小孔；再以炭火灼烧，甲骨正面便爆裂出枝状裂纹——「卜」字，正是这裂纹的象形，其读音亦拟自爆裂的脆响。</p>
+      <p>占卜者依裂纹的走向、长短判断吉凶，是为「占」。事毕，将所问之事与结果刻于裂纹之旁，便成了我们今日所见的「甲骨文」——汉字的源头。</p>
+      <p>本作《贞问·今契》复现这一仪式：你将贞问所求、择甲、凝观、灼火、待裂纹显现而得卜辞。今人之契，遥应商王之问。</p>
+    </div>
+    <div id="lp-close">合 卷</div>
+  </div>
+</div>
 <div id="act-hint"></div>
 
 <!-- 占辞文字（清晰DOM显示，仅微动） -->
 <div id="oracle-text"></div>
 <div id="fortune-panel"></div>
+<div id="btn-learn2">何为甲骨卜辞？</div>
 <div id="opt-labels"></div>
 
 <!-- 右上 摄像头 -->
@@ -261,6 +311,7 @@
     </div>
     <div id="zodiac-show">　</div>
     <button id="btn-confirm">刻辞卜甲</button>
+    <div id="btn-learn">何为甲骨卜辞？</div>
   </div>
 </div>
 
@@ -625,7 +676,22 @@ function setGesture(t){ elGesture.textContent="手势："+t; }
 const elActLabel=document.getElementById('act-label');
 const elActHint=document.getElementById('act-hint');
 const elCountdown=document.getElementById('hud-countdown');
-function showActLabel(name){ elActLabel.textContent=name; elActLabel.style.opacity='1'; }
+const elActCulture=document.getElementById('act-culture');
+// 每幕文化点题（古雅一句 + 平实小字），基于甲骨占卜常识
+const ACT_CULTURE={
+  '序 辞':{poem:'王有疑，则贞问于神', plain:'商代王室遇战事、祭祀、天时、疾病，必先占卜问神'},
+  '命 辞':{poem:'所问何事，刻于龟甲', plain:'占卜前先述所贞之事，是为「命辞」'},
+  '观 星':{poem:'凝神观甲，以候神示', plain:'择一片龟甲，静观其纹理，等待与神明相通'},
+  '火 淬':{poem:'灼甲见兆，裂纹即神谕', plain:'以火灼烧甲骨，正面爆裂出纹，「卜」字正是裂纹之象形'},
+  '占 辞':{poem:'观兆定吉凶，刻辞为记', plain:'依裂纹走向判断吉凶，事后刻于甲旁，遂成甲骨文'},
+};
+function showActLabel(name){
+  elActLabel.textContent=name; elActLabel.style.opacity='1';
+  const c=ACT_CULTURE[name];
+  if(c){ elActCulture.innerHTML=`<div class="poem">${c.poem}</div><div class="plain">${c.plain}</div>`;
+    elActCulture.style.opacity='1'; }
+  else { elActCulture.style.opacity='0'; }
+}
 function showHint(t){ elActHint.textContent=t; elActHint.style.opacity= t?'1':'0'; }
 function showCountdown(n){ elCountdown.textContent='占辞将逝 '+n; elCountdown.style.opacity='1'; }
 function hideCountdown(){ elCountdown.style.opacity='0'; }
@@ -652,6 +718,18 @@ let chosenZodiac=null, birthReady=false;
     else { birthReady=false; btn.classList.remove('ready'); }
   };
   [yEl,mEl,dEl].forEach(el=>el.addEventListener('change',onChange));
+})();
+
+// 文化介绍面板开关
+(function(){
+  const panel=document.getElementById('learn-panel');
+  const open=document.getElementById('btn-learn');
+  const close=document.getElementById('lp-close');
+  if(open) open.addEventListener('click',(e)=>{e.stopPropagation(); sfx('click'); panel.classList.add('show');});
+  const open2=document.getElementById('btn-learn2');
+  if(open2) open2.addEventListener('click',(e)=>{e.stopPropagation(); sfx('click'); panel.classList.add('show');});
+  if(close) close.addEventListener('click',(e)=>{e.stopPropagation(); sfx('click'); panel.classList.remove('show');});
+  if(panel) panel.addEventListener('click',(e)=>{ if(e.target===panel) panel.classList.remove('show'); });
 })();
 
 
@@ -1524,6 +1602,7 @@ function hideOracleText(){
   elOracle.classList.remove('show'); elOracle.style.opacity='0';
   const fp=document.getElementById('fortune-panel');
   if(fp){ fp.classList.remove('show'); fp.style.opacity='0'; }
+  const bl2=document.getElementById('btn-learn2'); if(bl2) bl2.classList.remove('show');
 }
 
 /* ---------- 今日运势模块（每次随机，指数72-99） ---------- */
@@ -1566,6 +1645,7 @@ function showFortune(){
     </div>
     <div class="note">今日注意事项 · ${note}</div>`;
   requestAnimationFrame(()=>fp.classList.add('show'));
+  const bl2=document.getElementById('btn-learn2'); if(bl2) bl2.classList.add('show');
 }
 
 let resultText='';
@@ -1744,7 +1824,7 @@ boot.addEventListener('click',startExperience,{once:true});
 
 /* ---------- 全程鼠标双击兜底：任何一幕卡住都能用双击推进 ---------- */
 window.addEventListener('dblclick',(e)=>{
-  if(e.target.closest('#btn-mode,#btn-mute,#btn-shot,#btn-confirm,#birth-selects,#boot')) return;
+  if(e.target.closest('#btn-mode,#btn-mute,#btn-shot,#btn-confirm,#birth-selects,#btn-learn,#btn-learn2,#learn-panel,#boot')) return;
   if(state===STATE.ACT1_SELECT){
     // 双击落在某骨片附近则选它，否则选光标最近的
     const world=screenToWorld(mouse.x,mouse.y,0);
